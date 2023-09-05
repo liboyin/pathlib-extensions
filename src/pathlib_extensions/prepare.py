@@ -14,7 +14,7 @@ class SuffixError(Exception):
     """Raised when the file suffix does not meet the expected criteria."""
 
 
-def input_dir(p: AnyPath) -> Path:
+def prepare_input_dir(p: AnyPath) -> Path:
     """Prepare the target directory path for reading.
 
     Args:
@@ -35,7 +35,7 @@ def input_dir(p: AnyPath) -> Path:
     return p
 
 
-def input_file(p: AnyPath, check_suffix: str | None = None, with_suffix: str | None = None) -> Path:
+def prepare_input_file(p: AnyPath, check_suffix: str | None = None, with_suffix: str | None = None) -> Path:
     """Prepare the target file path for reading.
 
     Args:
@@ -67,7 +67,7 @@ def input_file(p: AnyPath, check_suffix: str | None = None, with_suffix: str | N
     return p
 
 
-def output_dir(p: AnyPath, create: bool = True) -> Path:
+def prepare_output_dir(p: AnyPath, create: bool = True) -> Path:
     """Prepare the target directory path for writing.
 
     Args:
@@ -90,7 +90,7 @@ def output_dir(p: AnyPath, create: bool = True) -> Path:
     return p
 
 
-def output_file(p: AnyPath, check_suffix: str | None = None, with_suffix: str | None = None, create: bool = True) -> Path:
+def prepare_output_file(p: AnyPath, check_suffix: str | None = None, with_suffix: str | None = None, create: bool = True) -> Path:
     """Prepare the target file path for writing.
 
     Args:
