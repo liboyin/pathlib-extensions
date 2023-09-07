@@ -1,5 +1,6 @@
 from os import fspath
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -13,6 +14,8 @@ def test_null_path():
     assert hash(mp) == hash(None)
     for k in ['exists', 'is_file', 'is_dir']:
         assert getattr(mp, k)() is False
+    for k in ['with_name', 'with_stem', 'with_suffix']:
+        assert getattr(mp, k)('.any') == mp
     for k in ['name', 'suffix', 'stem', 'parent', 'root', 'anchor']:
         assert isinstance(getattr(type(mp), k), property)
         assert getattr(mp, k) == ''
@@ -28,6 +31,9 @@ def test_valid_path():
     assert hash(mp) == hash(p)
     for k in ['exists', 'is_file', 'is_dir']:
         assert getattr(mp, k)() == getattr(p, k)()
+    for k in ['with_name', 'with_stem', 'with_suffix']:
+        # suffix must start with a dot
+        assert getattr(mp, k)('.any').p == getattr(p, k)('.any')
     for k in ['name', 'suffix', 'stem', 'parent', 'root', 'anchor']:
         assert isinstance(getattr(type(mp), k), property)
         assert getattr(mp, k) == getattr(p, k)
@@ -65,3 +71,12 @@ def test_repr():
     assert str(NullablePath()) == 'NullablePath(None)'
     assert repr(NullablePath('a/b')) == 'NullablePath(a/b)'
     assert str(NullablePath('a/b')) == 'NullablePath(a/b)'
+
+
+def test_mkdir():
+    np = NullablePath()
+    assert np.mkdir() is None
+    np.p = mock.MagicMock()
+    np.p.mkdir = mock_mkdir = mock.MagicMock()
+    np.mkdir('a', b='b')
+    mock_mkdir.assert_called_once_with('a', b='b')

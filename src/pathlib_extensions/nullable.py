@@ -16,6 +16,9 @@ class NullablePath(PathLike):
 
     def __init__(self, p: PathLike | None = None) -> None:
         self.p: Path | None = Path(p) if p else None
+        for k in ['with_name', 'with_stem', 'with_suffix']:
+            # x must be the second argument of the lambda because it is being bound as a kwarg
+            setattr(self, k, partial(lambda token, x: self.__class__(getattr(self.p, x)(token)) if self else self, x=k))
         for k in ['exists', 'is_file', 'is_dir']:
             # self must be bound to the time when the method is called because p is mutable
             setattr(self, k, partial(lambda x: getattr(self.p, x)() if self else False, x=k))
@@ -55,3 +58,7 @@ class NullablePath(PathLike):
         if self:
             return tuple(self.__class__(x) for x in self.p.parents)
         return ()
+
+    def mkdir(self, *args, **kwargs) -> None:
+        if self:
+            return self.p.mkdir(*args, **kwargs)
