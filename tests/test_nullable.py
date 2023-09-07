@@ -25,20 +25,20 @@ def test_null_path():
 
 def test_valid_path():
     p = Path(__file__)
-    mp = NullablePath(p)
-    assert mp
-    assert fspath(mp) == fspath(p)
-    assert hash(mp) == hash(p)
+    np = NullablePath(p)
+    assert np
+    assert fspath(np) == fspath(p)
+    assert hash(np) == hash(p)
     for k in ['exists', 'is_file', 'is_dir']:
-        assert getattr(mp, k)() == getattr(p, k)()
+        assert getattr(np, k)() == getattr(p, k)()
     for k in ['with_name', 'with_stem', 'with_suffix']:
         # suffix must start with a dot
-        assert getattr(mp, k)('.any').p == getattr(p, k)('.any')
+        assert getattr(np, k)('.any').p == getattr(p, k)('.any')
     for k in ['name', 'suffix', 'stem', 'parent', 'root', 'anchor']:
-        assert isinstance(getattr(type(mp), k), property)
-        assert getattr(mp, k) == getattr(p, k)
-    assert isinstance(getattr(type(mp), 'parents'), property)
-    for x, y in zip(mp.parents, p.parents):
+        assert isinstance(getattr(type(np), k), property)
+        assert getattr(np, k) == getattr(p, k)
+    assert isinstance(getattr(type(np), 'parents'), property)
+    for x, y in zip(np.parents, p.parents):
         assert x.p == y
 
 
