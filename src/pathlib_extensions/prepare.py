@@ -29,7 +29,7 @@ def prepare_input_dir(p: AnyPath) -> Path:
         FileNotFoundError: If the target path does not exist.
         NotADirectoryError: If the target path exists but is not a directory.
     """
-    if isinstance(str):
+    if isinstance(p, str):
         p = Path(p)
     if not p.is_dir():
         if p.exists():
@@ -55,7 +55,7 @@ def prepare_input_file(p: AnyPath, check_suffix: str | None = None, with_suffix:
         SuffixError: If the file suffix does not meet the expected criteria.
         ValueError: If both `check_suffix` and `with_suffix` are specified.
     """
-    if isinstance(str):
+    if isinstance(p, str):
         p = Path(p)
     if check_suffix is not None:
         if with_suffix is not None:
@@ -84,7 +84,7 @@ def prepare_output_dir(p: AnyPath, create: bool = True) -> Path:
     Raises:
         NotADirectoryError: If the target path exists but is not a directory.
     """
-    if isinstance(str):
+    if isinstance(p, str):
         p = Path(p)
     if p.exists():
         if not p.is_dir():
@@ -111,7 +111,7 @@ def prepare_output_file(p: AnyPath, check_suffix: str | None = None, with_suffix
         NotAFileError: If the target path exists but is not a file.
         ValueError: If both `check_suffix` and `with_suffix` are specified.
     """
-    if isinstance(str):
+    if isinstance(p, str):
         p = Path(p)
     if check_suffix is not None:
         if with_suffix is not None:
