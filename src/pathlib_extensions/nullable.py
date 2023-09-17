@@ -8,7 +8,7 @@ from typing import Any, Tuple
 class NullablePath(PathLike):
     def __new__(cls, *args, **kwargs) -> 'NullablePath':
         # properties can only be set at the class level, not at the instance level
-        for k in ['name', 'suffix', 'stem', 'parent', 'root', 'anchor']:
+        for k in ['name', 'suffix', 'stem', 'root', 'anchor']:
             # for lambda functions defined in a loop, variable binding happens at run time
             # this line uses functools.partial to bind x early while binding self late
             setattr(cls, k, property(partial(lambda self, x: getattr(self.p, x, ''), x=k)))
@@ -52,6 +52,12 @@ class NullablePath(PathLike):
 
     def __str__(self) -> str:
         return repr(self)
+
+    @property
+    def parent(self) -> 'NullablePath':
+        if self:
+            return self.__class__(self.p.parent)
+        return self.__class__()
 
     @property
     def parents(self) -> Tuple['NullablePath', ...]:

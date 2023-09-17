@@ -16,9 +16,11 @@ def test_null_path():
         assert getattr(mp, k)() is False
     for k in ['with_name', 'with_stem', 'with_suffix']:
         assert getattr(mp, k)('.any') == mp
-    for k in ['name', 'suffix', 'stem', 'parent', 'root', 'anchor']:
+    for k in ['name', 'suffix', 'stem', 'root', 'anchor']:
         assert isinstance(getattr(type(mp), k), property)
         assert getattr(mp, k) == ''
+    assert isinstance(getattr(type(mp), 'parent'), property)
+    assert mp.parent == mp
     assert isinstance(getattr(type(mp), 'parents'), property)
     assert mp.parents == ()
 
@@ -34,9 +36,11 @@ def test_valid_path():
     for k in ['with_name', 'with_stem', 'with_suffix']:
         # suffix must start with a dot
         assert getattr(np, k)('.any').p == getattr(p, k)('.any')
-    for k in ['name', 'suffix', 'stem', 'parent', 'root', 'anchor']:
+    for k in ['name', 'suffix', 'stem', 'root', 'anchor']:
         assert isinstance(getattr(type(np), k), property)
         assert getattr(np, k) == getattr(p, k)
+    assert isinstance(getattr(type(np), 'parent'), property)
+    assert np.parent.p == p.parent
     assert isinstance(getattr(type(np), 'parents'), property)
     for x, y in zip(np.parents, p.parents):
         assert x.p == y
