@@ -8,21 +8,21 @@ from pathlib_extensions.nullable import NullablePath
 
 
 def test_null_path():
-    mp = NullablePath()
-    assert not mp
-    assert fspath(mp) == ''
-    assert hash(mp) == hash(None)
+    np = NullablePath()
+    assert not np
+    assert fspath(np) == ''
+    assert hash(np) == hash(None)
     for k in ['exists', 'is_file', 'is_dir']:
-        assert getattr(mp, k)() is False
+        assert getattr(np, k)() is False
     for k in ['with_name', 'with_stem', 'with_suffix']:
-        assert getattr(mp, k)('.any') == mp
+        assert getattr(np, k)('.any') == np
     for k in ['name', 'suffix', 'stem', 'root', 'anchor']:
-        assert isinstance(getattr(type(mp), k), property)
-        assert getattr(mp, k) == ''
-    assert isinstance(getattr(type(mp), 'parent'), property)
-    assert mp.parent == mp
-    assert isinstance(getattr(type(mp), 'parents'), property)
-    assert mp.parents == ()
+        assert isinstance(getattr(type(np), k), property)
+        assert getattr(np, k) == ''
+    assert isinstance(getattr(type(np), 'parent'), property)
+    assert np.parent == np
+    assert isinstance(getattr(type(np), 'parents'), property)
+    assert np.parents == ()
 
 
 def test_valid_path():
