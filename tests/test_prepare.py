@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from pathlib_extensions.nullable import NullablePath
 from pathlib_extensions.prepare import prepare_input_dir, prepare_input_file, prepare_output_dir, prepare_output_file, NotAFileError, SuffixError
 
 
@@ -19,6 +20,11 @@ def test_prepare_input_dir_not_found():
         prepare_input_dir('path/that/does/not/exist')
 
 
+def test_prepare_input_dir_null():
+    with pytest.raises(FileNotFoundError):
+        prepare_input_dir(NullablePath())
+
+
 def test_prepare_input_file_valid():
     assert prepare_input_file(__file__) == Path(__file__)
 
@@ -31,6 +37,11 @@ def test_prepare_input_file_invalid():
 def test_prepare_input_file_not_found():
     with pytest.raises(FileNotFoundError):
         prepare_input_file('file/that/does/not/exist')
+
+
+def test_prepare_input_file_null():
+    with pytest.raises(FileNotFoundError):
+        prepare_input_file(NullablePath())
 
 
 def test_prepare_input_file_check_suffix():
@@ -58,6 +69,11 @@ def test_prepare_output_dir_invalid():
         prepare_output_dir(__file__)
 
 
+def test_prepare_output_dir_null():
+    np = NullablePath()
+    assert prepare_output_dir(np) == np
+
+
 def test_prepare_output_dir_create(tmp_path):
     d = tmp_path / "sub2"
     assert prepare_output_dir(d, create=True) == d
@@ -74,6 +90,11 @@ def test_prepare_output_file_invalid(tmp_path):
     d.mkdir()
     with pytest.raises(NotAFileError):
         prepare_output_file(d)
+
+
+def test_prepare_output_file_null():
+    np = NullablePath()
+    assert prepare_output_file(np) == np
 
 
 def test_prepare_output_file_check_suffix(tmp_path):

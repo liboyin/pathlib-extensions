@@ -1,6 +1,8 @@
 from pathlib import Path
 
-AnyPath = str | Path
+from pathlib_extensions.nullable import NullablePath
+
+AnyPath = str | Path | NullablePath
 
 
 class NotAFileError(OSError):
@@ -27,7 +29,8 @@ def prepare_input_dir(p: AnyPath) -> Path:
         FileNotFoundError: If the target path does not exist.
         NotADirectoryError: If the target path exists but is not a directory.
     """
-    p = Path(p)
+    if isinstance(str):
+        p = Path(p)
     if not p.is_dir():
         if p.exists():
             raise NotADirectoryError(p)
@@ -52,7 +55,8 @@ def prepare_input_file(p: AnyPath, check_suffix: str | None = None, with_suffix:
         SuffixError: If the file suffix does not meet the expected criteria.
         ValueError: If both `check_suffix` and `with_suffix` are specified.
     """
-    p = Path(p)
+    if isinstance(str):
+        p = Path(p)
     if check_suffix is not None:
         if with_suffix is not None:
             raise ValueError('At most one of check_suffix and with_suffix can be specified')
@@ -80,7 +84,8 @@ def prepare_output_dir(p: AnyPath, create: bool = True) -> Path:
     Raises:
         NotADirectoryError: If the target path exists but is not a directory.
     """
-    p = Path(p)
+    if isinstance(str):
+        p = Path(p)
     if p.exists():
         if not p.is_dir():
             raise NotADirectoryError(p)
@@ -106,7 +111,8 @@ def prepare_output_file(p: AnyPath, check_suffix: str | None = None, with_suffix
         NotAFileError: If the target path exists but is not a file.
         ValueError: If both `check_suffix` and `with_suffix` are specified.
     """
-    p = Path(p)
+    if isinstance(str):
+        p = Path(p)
     if check_suffix is not None:
         if with_suffix is not None:
             raise ValueError('At most one of check_suffix and with_suffix can be specified')
