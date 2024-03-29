@@ -1,3 +1,31 @@
 [build-system]
-requires = ["setuptools>=40.8.0", "wheel"]
+requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pathlib-extensions"
+version = "0.0.1"
+description = "Utilities to make working with Python's built-in pathlib easier."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  {name = "Libo Yin", email = "liboyin830@gmail.com"}
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "pytest-randomly",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unused_configs = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+addopts = "--cov=. --cov-report html  --cov-report=term"
