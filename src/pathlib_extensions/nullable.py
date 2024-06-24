@@ -3,6 +3,8 @@ from os import PathLike, fspath
 from pathlib import Path
 from typing import Any, Tuple
 
+__all__ = ['NullablePath']
+
 
 # Optional* is already taken in Python; Maybe* is only used in Haskell. Nullable* should be less confusing?
 class NullablePath(PathLike):

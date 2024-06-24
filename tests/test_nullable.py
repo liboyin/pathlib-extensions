@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 
-from pathlib_extensions.nullable import NullablePath
+from pathlib_extensions import NullablePath
 
 
 def test_null_path():

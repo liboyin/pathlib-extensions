@@ -4,6 +4,8 @@ from pathlib_extensions.nullable import NullablePath
 
 AnyPath = str | Path | NullablePath
 
+__all__ = ['AnyPath', 'NotAFileError', 'SuffixError', 'prepare_input_dir', 'prepare_input_file', 'prepare_output_dir', 'prepare_output_file']
+
 
 class NotAFileError(OSError):
     """Raised when expecting a file, but encountering a different type of path.
