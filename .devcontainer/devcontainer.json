@@ -8,12 +8,12 @@
     "customizations": {
         "vscode": {
             "extensions": [
+                "charliermarsh.ruff",
                 "github.copilot",
                 "github.copilot-chat",
                 "mhutchie.git-graph",
                 "ms-azuretools.vscode-docker",
                 "ms-python.debugpy",
-                "ms-python.isort",
                 "ms-python.python",
                 "ms-python.vscode-pylance",
                 "ms-vscode.live-server",
@@ -21,8 +21,7 @@
                 "streetsidesoftware.code-spell-checker",
                 "tamasfe.even-better-toml",
                 "visualstudioexptteam.intellicode-api-usage-examples",
-                "visualstudioexptteam.vscodeintellicode",
-                "yzhang.markdown-all-in-one"
+                "visualstudioexptteam.vscodeintellicode"
             ]
         }
     }
