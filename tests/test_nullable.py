@@ -59,12 +59,13 @@ def test_concat():
     assert NullablePath() / NullablePath('b') == NullablePath()
     for left in [None, '/a']:
         with pytest.raises(TypeError):
-            left / NullablePath()
+            left / NullablePath()  # type: ignore
 
 
 def test_eq():
     assert NullablePath() != ''
-    assert NullablePath() != None
+    assert NullablePath() is not None
+    assert NullablePath() == NullablePath('')
     assert NullablePath('a/b') != 'a/b'
     assert NullablePath('a/b') == Path('a/b')
     assert NullablePath('a/b') == NullablePath('a/b')
@@ -79,7 +80,7 @@ def test_repr():
 
 def test_mkdir():
     np = NullablePath()
-    assert np.mkdir() is None
+    np.mkdir()
     np.p = mock.MagicMock()
     np.p.mkdir = mock_mkdir = mock.MagicMock()
     np.mkdir('a', b='b')
