@@ -1,8 +1,6 @@
 from pathlib import Path
 
-from pathlib_extensions.nullable import NullablePath
-
-AnyPath = str | Path | NullablePath
+AnyPath = str | Path
 
 __all__ = ['AnyPath', 'NotAFileError', 'SuffixError', 'prepare_input_dir', 'prepare_input_file', 'prepare_output_dir', 'prepare_output_file']
 
