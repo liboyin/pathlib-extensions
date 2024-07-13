@@ -1,6 +1,6 @@
 from os import PathLike, fspath
 from pathlib import Path
-from typing import Any, Self, Tuple, TypeVar, override
+from typing import Any, Self, Tuple, TypeVar
 
 __all__ = ['NullablePath']
 T = TypeVar('T')
@@ -27,7 +27,6 @@ class NullablePath(PathLike):
             return self.p == other
         return NotImplemented
 
-    @override
     def __fspath__(self) -> str:
         # must be defined when super().__new__() is called
         if self.p:
