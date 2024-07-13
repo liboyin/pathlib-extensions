@@ -7,7 +7,7 @@ name = "pathlib-extensions"
 version = "0.0.1"
 description = "Utilities to make working with Python's built-in pathlib easier."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
   {name = "Libo Yin", email = "liboyin830@gmail.com"}
 ]
