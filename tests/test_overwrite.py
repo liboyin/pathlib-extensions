@@ -4,7 +4,7 @@ from pathlib_extensions.overwrite import OverwriteMode, overwrite_existing_path
 
 
 def test_overwrite_mode():
-    assert OverwriteMode.values == ('always', 'never', 'prompt')
+    assert OverwriteMode.values() == ('always', 'never', 'prompt')
 
 
 def test_overwrite_existing_path_never():

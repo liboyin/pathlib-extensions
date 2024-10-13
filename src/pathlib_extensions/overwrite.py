@@ -7,7 +7,9 @@ class OverwriteMode(Enum):
     NEVER = "never"
     PROMPT = "prompt"
 
-OverwriteMode.values = tuple(mode.value for mode in OverwriteMode)
+    @classmethod
+    def values(cls) -> tuple[str, ...]:
+        return tuple(mode.value for mode in cls)
 
 
 def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
