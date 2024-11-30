@@ -20,6 +20,7 @@ pure_eval==0.2.3
 Pygments==2.18.0
 pytest==8.3.3
 pytest-cov==6.0.0
+pytest-mock==3.14.0
 pytest-randomly==3.16.0
 setuptools==69.0.3
 smmap==5.0.1
