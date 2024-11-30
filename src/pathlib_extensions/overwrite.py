@@ -13,6 +13,14 @@ class OverwriteMode(Enum):
         return tuple(mode.value for mode in cls)
 
 
+def user_confirms_overwrite(path: Path) -> bool:
+    """
+    Prompts the user to confirm overwriting an existing file/directory path.
+    """
+    user_input = input(f"Path '{path}' already exists. Overwrite? (y/N): ").strip().lower()
+    return user_input == 'y'
+
+
 def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
     """
     Returns whether to overwrite an existing file/directory path based on the specified overwrite mode.
@@ -36,8 +44,7 @@ def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
             print(not_overwrite_message)
             return False
         case OverwriteMode.PROMPT:
-            user_input = input(f"Path '{path}' already exists. Overwrite? (y/N): ").strip().lower()
-            if user_input != 'y':
+            if not user_confirms_overwrite(path):
                 print(not_overwrite_message)
                 return False
             print(overwrite_message)
