@@ -6,7 +6,7 @@ from pathlib_extensions.overwrite import OverwriteMode, overwrite_existing_path
 
 
 def test_overwrite_mode():
-    assert OverwriteMode.values() == ('always', 'never', 'prompt')
+    assert OverwriteMode.values() == ('always', 'never', 'prompt', 'rename')
 
 
 def test_overwrite_existing_path_file_not_found(mocker):
@@ -39,3 +39,8 @@ def test_overwrite_existing_path_prompt_negative(mocker, user_input):
     mocker.patch.object(Path, 'exists', return_value=True)
     assert not overwrite_existing_path(Path("/dummy/file.path"), OverwriteMode.PROMPT)
     mock_input.assert_called_once()
+
+
+def test_overwrite_existing_path_rename(mocker):
+    mocker.patch.object(Path, 'exists', return_value=True)
+    assert not overwrite_existing_path(Path("/dummy/file.path"), OverwriteMode.RENAME)

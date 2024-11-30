@@ -6,6 +6,7 @@ class OverwriteMode(Enum):
     ALWAYS = "always"
     NEVER = "never"
     PROMPT = "prompt"
+    RENAME = "rename"
 
     @classmethod
     def values(cls) -> tuple[str, ...]:
@@ -18,7 +19,7 @@ def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
 
     Args:
         path (Path): An existing file/directory path.
-        overwrite_mode (OverwriteMode): Always, never, or prompt user.
+        overwrite_mode (OverwriteMode): Always, never, prompt user, or rename.
 
     Returns:
         bool: True if the path should be overwritten, False otherwise.
@@ -41,3 +42,5 @@ def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
                 return False
             print(overwrite_message)
             return True
+        case OverwriteMode.RENAME:
+            return False
