@@ -51,3 +51,24 @@ def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
             return True
         case OverwriteMode.RENAME:
             return False
+
+
+def get_safe_output_path(path: Path) -> Path:
+    """
+    Returns a safe output path by incrementing a counter in the file/directory name if the path already exists.
+
+    Args:
+        path (Path): The file/directory path being considered.
+
+    Returns:
+        Path: A safe file/directory path to write to.
+    """
+    if not path.exists():
+        return path
+    counter = 1
+    while True:
+        new = path.with_suffix(f".{counter}{path.suffix}")
+        if not new.exists():
+            print(f'Returning safe output path {new} for input {path}')
+            return new
+        counter += 1

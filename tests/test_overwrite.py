@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from pathlib_extensions.overwrite import OverwriteMode, overwrite_existing_path, user_confirms_overwrite
+from pathlib_extensions.overwrite import OverwriteMode, get_safe_output_path, overwrite_existing_path, user_confirms_overwrite
 
 
 def test_overwrite_mode():
@@ -54,3 +54,34 @@ def test_overwrite_existing_path_prompt_negative(mocker):
 def test_overwrite_existing_path_rename(mocker):
     mocker.patch.object(Path, 'exists', return_value=True)
     assert not overwrite_existing_path(Path("/dummy/file.path"), OverwriteMode.RENAME)
+
+
+def test_get_safe_output_path_nonexistent(mocker):
+    mocker.patch.object(Path, 'exists', return_value=False)
+    test_path = Path('test_file.txt')
+    result = get_safe_output_path(test_path)
+    assert result is test_path
+
+
+def test_get_safe_output_path_one_increment(mocker):
+    mock_exists = mocker.patch.object(Path, 'exists')
+    mock_exists.side_effect = [True, False]
+    test_path = Path('test_file.txt')
+    result = get_safe_output_path(test_path)
+    assert result == Path('test_file.1.txt')
+
+
+def test_get_safe_output_path_multiple_increments(mocker):
+    mock_exists = mocker.patch.object(Path, 'exists')
+    mock_exists.side_effect = [True, True, True, False]
+    test_path = Path('test_file.txt')
+    result = get_safe_output_path(test_path)
+    assert result == Path('test_file.3.txt')
+
+
+def test_get_safe_output_path_directory(mocker):
+    mock_exists = mocker.patch.object(Path, 'exists')
+    mock_exists.side_effect = [True, False]
+    test_path = Path('test_dir')
+    result = get_safe_output_path(test_path)
+    assert result == Path('test_dir.1')
