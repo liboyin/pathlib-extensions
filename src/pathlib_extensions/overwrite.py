@@ -72,3 +72,35 @@ def get_safe_output_path(path: Path) -> Path:
             print(f'Returning safe output path {new} for input {path}')
             return new
         counter += 1
+
+
+def get_output_path_by_overwrite_mode(path: Path, overwrite_mode: OverwriteMode) -> Path | None:
+    """
+    Returns the output path for an existing file/directory path based on the specified overwrite mode.
+
+    Args:
+        path (Path): An existing file/directory path.
+        overwrite_mode (OverwriteMode): Always, never, prompt user, or rename.
+
+    Returns:
+        Path | None: A safe file/directory path to write to, or None if nothing should be written.
+    """
+    if not path.exists():
+        raise FileNotFoundError(path)
+    overwrite_message = f'Overwriting path: {path}'
+    not_overwrite_message = f'Not overwriting path: {path}'
+    match overwrite_mode:
+        case OverwriteMode.ALWAYS:
+            print(overwrite_message)
+            return path
+        case OverwriteMode.NEVER:
+            print(not_overwrite_message)
+            return None
+        case OverwriteMode.PROMPT:
+            if user_confirms_overwrite(path):
+                print(overwrite_message)
+                return path
+            print(not_overwrite_message)
+            return None
+        case OverwriteMode.RENAME:
+            return get_safe_output_path(path)
