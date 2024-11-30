@@ -14,22 +14,30 @@ class OverwriteMode(Enum):
 
 def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
     """
-    Returns whether to overwrite an existing path based on the specified overwrite mode.
+    Returns whether to overwrite an existing file/directory path based on the specified overwrite mode.
 
     Args:
-        path (Path): The path being considered.
+        path (Path): An existing file/directory path.
         overwrite_mode (OverwriteMode): Always, never, or prompt user.
 
     Returns:
         bool: True if the path should be overwritten, False otherwise.
     """
-    message = f"Not overwriting existing path: {path}"
-    if overwrite_mode == OverwriteMode.NEVER:
-        print(message)
-        return False
-    elif overwrite_mode == OverwriteMode.PROMPT:
-        user_input = input(f"Path '{path}' already exists. Overwrite? (y/N): ").strip().lower()
-        if user_input != 'y':
-            print(message)
+    if not path.exists():
+        raise FileNotFoundError(path)
+    overwrite_message = f'Overwriting path: {path}'
+    not_overwrite_message = f'Not overwriting path: {path}'
+    match overwrite_mode:
+        case OverwriteMode.ALWAYS:
+            print(overwrite_message)
+            return True
+        case OverwriteMode.NEVER:
+            print(not_overwrite_message)
             return False
-    return True
+        case OverwriteMode.PROMPT:
+            user_input = input(f"Path '{path}' already exists. Overwrite? (y/N): ").strip().lower()
+            if user_input != 'y':
+                print(not_overwrite_message)
+                return False
+            print(overwrite_message)
+            return True
