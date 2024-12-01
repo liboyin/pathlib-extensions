@@ -69,7 +69,7 @@ def get_safe_output_path(path: Path) -> Path:
     while True:
         new = path.with_suffix(f".{counter}{path.suffix}")
         if not new.exists():
-            print(f'Returning safe output path {new} for input {path}')
+            print(f'Returning safe output path: {path} -> {new}')
             return new
         counter += 1
 
