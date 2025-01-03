@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from pathlib_extensions import NotAFileError, SuffixError, prepare_input_dir, prepare_input_file, prepare_output_dir, prepare_output_file
+from pathlib_extensions.prepare import NotAFileError, SuffixError, prepare_input_dir, prepare_input_file, prepare_output_dir, prepare_output_file
 
 
 def test_prepare_input_dir_valid():
