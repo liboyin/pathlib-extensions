@@ -1,8 +1,6 @@
 from pathlib import Path
 
-AnyPath = str | Path
-
-__all__ = ['AnyPath', 'NotAFileError', 'SuffixError', 'prepare_input_dir', 'prepare_input_file', 'prepare_output_dir', 'prepare_output_file']
+__all__ = ['NotAFileError', 'SuffixError', 'prepare_input_dir', 'prepare_input_file', 'prepare_output_dir', 'prepare_output_file']
 
 
 class NotAFileError(OSError):
@@ -16,11 +14,11 @@ class SuffixError(Exception):
     """Raised when the file suffix does not meet the expected criteria."""
 
 
-def prepare_input_dir(p: AnyPath) -> Path:
+def prepare_input_dir(p: str | Path) -> Path:
     """Prepare the target directory path for reading.
 
     Args:
-        p (AnyPath): The target directory path.
+        p (str | Path): The target directory path.
 
     Returns:
         Path: The verified directory path.
@@ -38,11 +36,11 @@ def prepare_input_dir(p: AnyPath) -> Path:
     return p
 
 
-def prepare_input_file(p: AnyPath, check_suffix: str | None = None, with_suffix: str | None = None) -> Path:
+def prepare_input_file(p: str | Path, check_suffix: str | None = None, with_suffix: str | None = None) -> Path:
     """Prepare the target file path for reading.
 
     Args:
-        p (AnyPath): The target file path.
+        p (str | Path): The target file path.
         check_suffix (Union[str, None], optional): Expected suffix for the file. Defaults to None.
         with_suffix (Union[str, None], optional): Suffix to add if missing. Defaults to None.
 
@@ -71,11 +69,11 @@ def prepare_input_file(p: AnyPath, check_suffix: str | None = None, with_suffix:
     return p
 
 
-def prepare_output_dir(p: AnyPath, create: bool = True) -> Path:
+def prepare_output_dir(p: str | Path, create: bool = True) -> Path:
     """Prepare the target directory path for writing.
 
     Args:
-        p (AnyPath): The target directory path.
+        p (str | Path): The target directory path.
         create (bool, optional): Whether to create the directory if it doesn't exist. Defaults to False.
 
     Returns:
@@ -95,11 +93,11 @@ def prepare_output_dir(p: AnyPath, create: bool = True) -> Path:
     return p
 
 
-def prepare_output_file(p: AnyPath, check_suffix: str | None = None, with_suffix: str | None = None, create: bool = True) -> Path:
+def prepare_output_file(p: str | Path, check_suffix: str | None = None, with_suffix: str | None = None, create: bool = True) -> Path:
     """Prepare the target file path for writing.
 
     Args:
-        p (AnyPath): The target file path.
+        p (str | Path): The target file path.
         check_suffix (Union[str, None], optional): Expected suffix for the file. Defaults to None.
         with_suffix (Union[str, None], optional): Suffix to add if missing. Defaults to None.
         create (bool, optional): Whether to create the directory if it doesn't exist. Defaults to False.
