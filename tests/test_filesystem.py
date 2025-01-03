@@ -1,4 +1,4 @@
-from pathlib_extensions import replace_os_reserved_chars
+from pathlib_extensions.filesystem import replace_os_reserved_chars
 
 
 def test_remove_os_reserved_chars():
