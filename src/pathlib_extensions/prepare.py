@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 __all__ = ['NotAFileError', 'SuffixError', 'prepare_input_dir', 'prepare_input_file', 'prepare_output_dir', 'prepare_output_file']
@@ -26,6 +27,7 @@ def prepare_input_dir(p: str | Path) -> Path:
     Raises:
         FileNotFoundError: If the target path does not exist.
         NotADirectoryError: If the target path exists but is not a directory.
+        PermissionError: If the current user has no read permission to the target directory.
     """
     if isinstance(p, str):
         p = Path(p)
@@ -33,6 +35,8 @@ def prepare_input_dir(p: str | Path) -> Path:
         if p.exists():
             raise NotADirectoryError(p)
         raise FileNotFoundError(p)
+    if not os.access(p, os.R_OK):
+        raise PermissionError(p)
     return p
 
 
@@ -52,6 +56,7 @@ def prepare_input_file(p: str | Path, check_suffix: str | None = None, with_suff
         NotAFileError: If the target path exists but is not a file.
         SuffixError: If the file suffix does not meet the expected criteria.
         ValueError: If both `check_suffix` and `with_suffix` are specified.
+        PermissionError: If the current user has no read permission to the target file.
     """
     if isinstance(p, str):
         p = Path(p)
@@ -66,6 +71,8 @@ def prepare_input_file(p: str | Path, check_suffix: str | None = None, with_suff
         if p.exists():
             raise NotAFileError(p)
         raise FileNotFoundError(p)
+    if not os.access(p, os.R_OK):
+        raise PermissionError(p)
     return p
 
 
@@ -81,6 +88,7 @@ def prepare_output_dir(p: str | Path, create: bool = True) -> Path:
 
     Raises:
         NotADirectoryError: If the target path exists but is not a directory.
+        PermissionError: If the current user has no write permission to the target directory.
     """
     if isinstance(p, str):
         p = Path(p)
@@ -90,6 +98,8 @@ def prepare_output_dir(p: str | Path, create: bool = True) -> Path:
     elif create:
         # if checks failed, new dir is not created
         p.mkdir(parents=True, exist_ok=True)
+    if not os.access(p, os.W_OK):
+        raise PermissionError(p)
     return p
 
 
@@ -108,6 +118,8 @@ def prepare_output_file(p: str | Path, check_suffix: str | None = None, with_suf
     Raises:
         NotAFileError: If the target path exists but is not a file.
         ValueError: If both `check_suffix` and `with_suffix` are specified.
+        SuffixError: If the file suffix does not meet the expected criteria.
+        PermissionError: If the current user has no write permission to the target file.
     """
     if isinstance(p, str):
         p = Path(p)
@@ -121,6 +133,8 @@ def prepare_output_file(p: str | Path, check_suffix: str | None = None, with_suf
     if p.exists():
         if not p.is_file():
             raise NotAFileError(p)
+        if not os.access(p, os.W_OK):
+            raise PermissionError(p)
     elif create:
         # if checks failed, new dir is not created
         p.parent.mkdir(parents=True, exist_ok=True)
