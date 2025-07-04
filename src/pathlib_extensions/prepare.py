@@ -81,7 +81,7 @@ def prepare_output_dir(p: str | Path, create: bool = True) -> Path:
 
     Args:
         p (str | Path): The target directory path.
-        create (bool, optional): Whether to create the directory if it doesn't exist. Defaults to False.
+        create (bool, optional): Whether to create the directory if it doesn't exist. Defaults to True.
 
     Returns:
         Path: The verified or created directory path.
@@ -110,7 +110,7 @@ def prepare_output_file(p: str | Path, check_suffix: str | None = None, with_suf
         p (str | Path): The target file path.
         check_suffix (Union[str, None], optional): Expected suffix for the file. Defaults to None.
         with_suffix (Union[str, None], optional): Suffix to add if missing. Defaults to None.
-        create (bool, optional): Whether to create the directory if it doesn't exist. Defaults to False.
+        create (bool, optional): Whether to create the directory if it doesn't exist. Defaults to True.
 
     Returns:
         Path: The verified or updated file path.
