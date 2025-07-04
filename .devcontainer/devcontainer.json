@@ -10,7 +10,7 @@
     "mounts": [
         "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
     ],
-    "postCreateCommand": "pip --disable-pip-version-check --no-cache-dir install -e .[dev]",
+    "postCreateCommand": "chmod +x .devcontainer/postCreateCommand.sh && ./.devcontainer/postCreateCommand.sh",
     "customizations": {
         "vscode": {
             "extensions": [
