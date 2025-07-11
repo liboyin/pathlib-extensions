@@ -4,7 +4,7 @@ from pathlib import Path
 __all__ = ['OverwriteMode', 'user_confirms_overwrite', 'overwrite_existing_path']
 
 
-class OverwriteMode(Enum):
+class OverwriteMode(str, Enum):
     ALWAYS = "always"
     NEVER = "never"
     PROMPT = "prompt"
