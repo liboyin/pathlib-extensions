@@ -26,9 +26,7 @@
                 "ryu1kn.partial-diff",
                 "saoudrizwan.claude-dev",
                 "streetsidesoftware.code-spell-checker",
-                "tamasfe.even-better-toml",
-                "visualstudioexptteam.intellicode-api-usage-examples",
-                "visualstudioexptteam.vscodeintellicode"
+                "tamasfe.even-better-toml"
             ]
         }
     }
