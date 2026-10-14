@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from pathlib_extensions.filesystem import replace_os_reserved_chars, truncate_filename
+from pathlib_extensions.filesystem import build_filename, replace_os_reserved_chars, truncate_filename
 
 
 def test_remove_os_reserved_chars():
@@ -126,3 +126,67 @@ def test_truncate_filename_rejects_dot_or_dot_dot_result(name, max_length):
     """A truncated name of '.' or '..' raises instead of returning a directory path."""
     with pytest.raises(ValueError, match="Not possible to truncate"):
         truncate_filename(Path("d") / name, max_length=max_length)
+
+
+def test_build_filename_replaces_reserved_characters_without_truncating(capsys):
+    """A short name keeps all text with reserved characters replaced, and prints nothing."""
+    assert build_filename('a/b: c?', '.mp4', tag=' [id1]') == 'a_b_ c_ [id1].mp4'
+    assert capsys.readouterr().out == ''
+
+
+def test_build_filename_uses_custom_replacement_for_reserved_characters():
+    """A non-default replacement is used for every reserved character."""
+    assert build_filename('a/b:c?', '.txt', replacement='-') == 'a-b-c-.txt'
+
+
+def test_build_filename_keeps_name_at_exact_limit():
+    """A name of exactly max_length bytes is kept whole."""
+    assert build_filename('a' * 10, '.mp4', tag=' [x]', max_length=18) == 'a' * 10 + ' [x].mp4'
+
+
+def test_build_filename_truncates_only_text_and_keeps_tag_and_suffix(capsys):
+    """A long title is cut so the tag and suffix survive within the byte limit."""
+    title = 'Mr. Smith Goes to Washington ' + 'x' * 300
+    name = build_filename(title, '.mp4', tag=' [n9xhJrPXop4]', max_length=220)
+    assert name == title[:220 - 18] + ' [n9xhJrPXop4].mp4'
+    assert len(name.encode('utf-8')) == 220
+    assert 'Truncated filename:' in capsys.readouterr().out
+
+
+def test_build_filename_infers_no_suffix_from_dots_in_text():
+    """An extension-like ending in the text is truncated as text; only the given tag and suffix are kept."""
+    assert build_filename('x' * 30 + '.tar.gz', max_length=10) == 'x' * 10
+    assert build_filename('x' * 30 + '.tar.gz', '.mp4', tag=' [id]', max_length=20) == 'x' * 11 + ' [id].mp4'
+
+
+@pytest.mark.parametrize(('suffix', 'tag', 'expected'), [
+    ('.txt', ' [🌟]', 'aaa [🌟].txt'),
+    ('.é', '', 'aaaaaaaaaaa.é'),
+    ('.é', ' [🌟]', 'aaaa [🌟].é'),
+])
+def test_build_filename_budgets_kept_components_in_utf8_bytes(suffix, tag, expected):
+    """Multi-byte tags and suffixes are kept verbatim and counted in bytes, not characters."""
+    name = build_filename('a' * 20, suffix, tag=tag, max_length=14)
+    assert name == expected
+    assert len(name.encode('utf-8')) == 14
+
+
+def test_build_filename_never_splits_multibyte_characters():
+    """Truncation cuts the text at a UTF-8 character boundary below the limit."""
+    name = build_filename('é' * 100, '.srt', max_length=11)
+    assert name == 'ééé.srt'
+    assert len(name.encode('utf-8')) == 10
+
+
+@pytest.mark.parametrize(('text', 'suffix', 'tag', 'max_length'), [
+    ('', '.mp4', ' [id]', 255),
+    ('title', '.mp4', ' [id]', 9),
+    ('🌟title', '.mp4', '', 7),
+    ('x' * 300, '.' + 'a' * 300, '', 255),
+    ('.', '', '', 255),
+    ('..xxx', '', '', 2),
+])
+def test_build_filename_rejects_names_without_text_or_naming_a_directory(text, suffix, tag, max_length):
+    """No room for text, empty text, or a '.'/'..' result raises ValueError."""
+    with pytest.raises(ValueError, match="Not possible to build a filename"):
+        build_filename(text, suffix, tag=tag, max_length=max_length)
