@@ -1,5 +1,5 @@
 {
-    "image": "python:3.13-slim-bookworm",
+    "image": "python:3.15.0-slim-trixie",
     "features": {
         "ghcr.io/devcontainers/features/common-utils:2":{
             "configureZshAsDefaultShell": "true",
