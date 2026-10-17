@@ -8,25 +8,28 @@
     },
     "remoteUser": "vscode",
     "mounts": [
+        // share Git + SSH config between host and container
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly",
         "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
     ],
     "postCreateCommand": "chmod +x .devcontainer/postCreateCommand.sh && ./.devcontainer/postCreateCommand.sh",
     "customizations": {
         "vscode": {
             "extensions": [
+                "anthropic.claude-code",
                 "charliermarsh.ruff",
-                "github.copilot",
-                "github.copilot-chat",
                 "github.vscode-github-actions",
                 "mhutchie.git-graph",
                 "ms-python.debugpy",
                 "ms-python.python",
                 "ms-python.vscode-pylance",
                 "ms-vscode.live-server",
+                "openai.chatgpt",
                 "ryu1kn.partial-diff",
                 "saoudrizwan.claude-dev",
                 "streetsidesoftware.code-spell-checker",
-                "tamasfe.even-better-toml"
+                "tamasfe.even-better-toml",
+                "yzhang.markdown-all-in-one"
             ]
         }
     }
