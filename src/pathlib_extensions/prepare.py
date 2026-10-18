@@ -1,4 +1,5 @@
 import os
+import stat
 from pathlib import Path
 
 __all__ = ['NotAFileError', 'SuffixError', 'prepare_input_dir', 'prepare_input_file', 'prepare_output_dir', 'prepare_output_file']
@@ -27,7 +28,8 @@ def prepare_input_dir(p: str | Path) -> Path:
     Raises:
         FileNotFoundError: If the target path does not exist.
         NotADirectoryError: If the target path exists but is not a directory.
-        PermissionError: If the current user has no read permission to the target directory.
+        PermissionError: If the current user cannot list or search the target directory; search
+            permission is needed to open its entries.
     """
     if isinstance(p, str):
         p = Path(p)
@@ -35,7 +37,7 @@ def prepare_input_dir(p: str | Path) -> Path:
         if p.exists():
             raise NotADirectoryError(p)
         raise FileNotFoundError(p)
-    if not os.access(p, os.R_OK):
+    if not os.access(p, os.R_OK | os.X_OK):
         raise PermissionError(p)
     return p
 
@@ -81,24 +83,30 @@ def prepare_output_dir(p: str | Path, create: bool = True) -> Path:
 
     Args:
         p (str | Path): The target directory path.
-        create (bool, optional): Whether to create the directory if it doesn't exist. Defaults to True.
+        create (bool, optional): Whether to create the directory and its missing parents if it
+            doesn't exist. Defaults to True.
 
     Returns:
         Path: The verified or created directory path.
 
     Raises:
-        NotADirectoryError: If the target path exists but is not a directory.
-        PermissionError: If the current user has no write permission to the target directory.
+        FileNotFoundError: If the target path does not exist and `create` is False.
+        NotADirectoryError: If the target path or one of its ancestors exists but is not a directory.
+        PermissionError: If the current user cannot reach the target path, or cannot create entries in
+            the target directory (which needs both write and search permission).
     """
     if isinstance(p, str):
         p = Path(p)
-    if p.exists():
-        if not p.is_dir():
+    # stat() rather than exists(): since Python 3.13, exists() reports False for an unsearchable
+    # ancestor, which would misreport a permission problem as a missing directory.
+    try:
+        if not stat.S_ISDIR(p.stat().st_mode):
             raise NotADirectoryError(p)
-    elif create:
-        # if checks failed, new dir is not created
+    except FileNotFoundError:
+        if not create:
+            raise FileNotFoundError(p) from None
         p.mkdir(parents=True, exist_ok=True)
-    if not os.access(p, os.W_OK):
+    if not os.access(p, os.W_OK | os.X_OK):
         raise PermissionError(p)
     return p
 
@@ -110,16 +118,23 @@ def prepare_output_file(p: str | Path, check_suffix: str | None = None, with_suf
         p (str | Path): The target file path.
         check_suffix (Union[str, None], optional): Expected suffix for the file. Defaults to None.
         with_suffix (Union[str, None], optional): Suffix to add if missing. Defaults to None.
-        create (bool, optional): Whether to create the directory if it doesn't exist. Defaults to True.
+        create (bool, optional): Whether to create the parent directory and its missing parents if the
+            target file doesn't exist. Defaults to True.
 
     Returns:
         Path: The verified or updated file path.
 
     Raises:
+        FileNotFoundError: If neither the target file nor its parent directory exists and `create` is
+            False.
         NotAFileError: If the target path exists but is not a file.
+        NotADirectoryError: If the target file does not exist and its parent path or one of its
+            ancestors exists but is not a directory.
         ValueError: If both `check_suffix` and `with_suffix` are specified.
         SuffixError: If the file suffix does not meet the expected criteria.
-        PermissionError: If the current user has no write permission to the target file.
+        PermissionError: If the target file exists and the current user has no write permission to it,
+            or if it does not exist and the user cannot create entries in its parent directory. An
+            existing file is checked for in-place writing only: its directory may be read-only.
     """
     if isinstance(p, str):
         p = Path(p)
@@ -135,7 +150,6 @@ def prepare_output_file(p: str | Path, check_suffix: str | None = None, with_suf
             raise NotAFileError(p)
         if not os.access(p, os.W_OK):
             raise PermissionError(p)
-    elif create:
-        # if checks failed, new dir is not created
-        p.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        prepare_output_dir(p.parent, create)
     return p
