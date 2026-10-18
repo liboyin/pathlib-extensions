@@ -62,6 +62,27 @@ def test_resolve_publication_target_rejects_symlink_to_directory(tmp_path):
         testee.resolve_publication_target(link)
 
 
+@pytest.mark.skipif(os.name != 'posix' or os.geteuid() == 0, reason='POSIX permission bits are only enforced for non-root users')
+@pytest.mark.parametrize('via_symlink', [False, True], ids=['direct', 'symlink'])
+def test_resolve_publication_target_rejects_writable_file_in_unwritable_directory(via_symlink, tmp_path):
+    """A writable target is rejected when its resolved directory cannot hold a stage."""
+    directory = tmp_path / 'out'
+    directory.mkdir()
+    real = directory / 'out.bin'
+    real.write_bytes(b'old')
+    path = real
+    if via_symlink:
+        path = tmp_path / 'link.bin'
+        path.symlink_to(real)
+    directory.chmod(0o500)
+    try:
+        with pytest.raises(PermissionError):
+            testee.resolve_publication_target(path)
+    finally:
+        directory.chmod(0o700)
+    assert real.read_bytes() == b'old'
+
+
 @pytest.mark.parametrize('policy', REPLACING)
 def test_publish_staged_file_replaces_existing_file_and_retains_its_mode(policy, tmp_path):
     """Replacing modes publish new bytes with the previous permission bits."""

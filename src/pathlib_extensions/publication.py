@@ -3,7 +3,7 @@ import stat
 from pathlib import Path
 
 from pathlib_extensions.overwrite import OverwriteMode
-from pathlib_extensions.prepare import prepare_output_file
+from pathlib_extensions.prepare import prepare_output_dir, prepare_output_file
 
 __all__ = ['publish_staged_file', 'resolve_publication_target']
 
@@ -25,10 +25,14 @@ def resolve_publication_target(path: Path) -> tuple[Path, int | None]:
 
     Raises:
         NotAFileError: If the resolved target exists but is not a file.
-        PermissionError: If the resolved target exists but is not writable.
+        PermissionError: If the resolved target exists but is not writable, or its directory cannot
+            accept the new entries that staging and publication need.
     """
     target = path.resolve()
     prepare_output_file(target)
+    # The stage is created beside the target and then linked or renamed over it, so the directory
+    # must accept new entries even when an existing target is itself writable in place.
+    prepare_output_dir(target.parent, create=False)
     try:
         mode: int | None = stat.S_IMODE(target.stat().st_mode)
     except FileNotFoundError:
