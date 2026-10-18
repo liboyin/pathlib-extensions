@@ -171,7 +171,6 @@ def test_publish_staged_file_replacement_failure_preserves_previous_file(mocker,
     """A failed replacement propagates and leaves the previous file intact."""
     target = tmp_path / 'out.bin'
     target.write_bytes(b'old')
-    # Path.replace binds os.replace at import time on Python 3.10, so patch the method.
     mocker.patch.object(Path, 'replace', side_effect=PermissionError('replace failed'))
     with pytest.raises(PermissionError, match='replace failed'):
         publish_staged_file(make_stage(tmp_path), target, None, OverwriteMode.ALWAYS)
