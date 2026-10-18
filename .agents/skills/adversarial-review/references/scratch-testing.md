@@ -27,7 +27,7 @@ import pytest
 def pytest_sessionfinish(session, exitstatus):
     """Verify exercised library provenance without preloading application modules."""
     scratch_root = Path(__file__).resolve().parents[1]
-    names = ("pathlib_extensions.filesystem",)
+    names = ("pathlib_extensions.naming",)
     for name in names:
         module = sys.modules.get(name)
         if module is None:

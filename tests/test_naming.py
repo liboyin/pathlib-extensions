@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import pathlib_extensions.filesystem as testee
+import pathlib_extensions.naming as testee
 
 
 def test_remove_os_reserved_chars():
