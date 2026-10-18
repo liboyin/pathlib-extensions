@@ -1,20 +1,21 @@
 # Scratch Testing Recipe
 
-Use this recipe when the [review procedure](../SKILL.md#procedure) requires scratch execution. It supplies examples, not a substitute for AGENTS' test-ownership rules.
+Use this recipe whenever the [review procedure](../SKILL.md#procedure) or an implementer runs tests or mutants against a candidate outside the main working tree. Reading source and diffs needs no scratch copy. AGENTS' [test-ownership rules](../../../../AGENTS.md#tests) still apply inside scratch.
 
-Create a scratch copy only when writable execution is needed. Within one agent's assessment of a fixed candidate, reuse one owned scratch tree for focused checks and mutants where practical, restoring the candidate before each mutation and using fresh test processes. Do not share a writable scratch tree between agents. A new assessment must use its current candidate; changing import-lifecycle requirements may justify a separate copy. Evidence inspection alone needs no scratch copy.
+## Copy
 
-## Mutation selection and containment
+Create one owned scratch directory outside the repository per agent and candidate; never share a writable scratch tree between agents. From the repository root, copy the tracked working tree plus only the explicitly named in-scope untracked files, preserving modes and copying symlinks as links:
 
-Choose a focused test set that observes the protected behavior and owns every side effect reachable under the mutant. Inspect changed failure and routing paths before running it: a mutant that bypasses validation can reach resource creation that the passing test never exercised. Supply owned service doubles or appropriate scratch-only guards for those paths; an invalid hostname, synthetic credentials or temporary settings do not prevent network attempts. Preserve the import lifecycle under test when adding guards. For example, an overwrite-policy mutant may replace a destination that the passing test preserves; both the destination and every symlink or hard-link target must remain test-owned.
+```bash
+git ls-files -z | xargs -0 cp --parents -P -p -t "$SCRATCH"
+cp --parents -P -p -t "$SCRATCH" -- <in-scope untracked files>
+```
 
-Establish a passing unmutated baseline for the selected tests with the same bootstrap, isolation and provenance checks. A mutation kill requires a behavioral failure for the named invariant. When probing premature replacement or publication, make the mutant perform that side effect, rather than merely prepare an unexecuted operation, unless preparation itself is the protected invariant.
+Tracked files deleted but not yet staged in the candidate are reported missing and make the first command exit non-zero; confirm those are the only errors. Never copy `.git`, ignored files, `.env`, credentials or host data. The only tracked symlink, `.claude/skills`, points inside the copy; if a candidate adds a link whose target leaves scratch, do not follow it, and return `Review blocked` if the target is required. Restore the candidate before each mutant, and use fresh test processes.
 
-If a run escapes ownership or fails provenance, record it as invalid regardless of other assertion failures. Stop that probe, quiesce owned work, restore the candidate, and correct its containment or test selection before retrying; do not repeat the unsafe command unchanged. Retain a brief account of the escaped operation and any verified access or cleanup, without secrets. Follow the [evidence rules](../SKILL.md#evidence-retention) to rerun affected cases rather than automatically restart an otherwise valid batch.
+## Run and verify provenance
 
-## Fresh-process execution and provenance
-
-Run fresh Python processes from the prepared scratch root using `python -m pytest`, with `PYTHONPATH` pointing to its `src` directory and `TMPDIR` plus pytest's `--basetemp` inside an owned scratch subdirectory. Preserve any existing test bootstrap; this repository currently has no `tests/conftest.py`. Add scratch-only provenance checks in the process exercising the code without changing application import timing; a separate `find_spec` probe does not certify the pytest process. For focused tests whose exercised modules remain loaded, prefer checking `sys.modules` after execution. Add the following example only to `tests/conftest.py` in scratch (create it if absent), adapting the expected module names to the selected tests and preserving existing hooks and imports:
+The editable install's `.pth` file points at the original repository's `src`, so a scratch run without `PYTHONPATH` silently tests the original code and every mutant appears to survive. Verify inside the pytest process that the exercised modules came from scratch by adding this hook to scratch's `tests/conftest.py` only (create it if absent; never add it to the repository). List the modules the selected tests exercise:
 
 ```python
 from pathlib import Path
@@ -37,15 +38,23 @@ def pytest_sessionfinish(session, exitstatus):
     print(f"ACTUAL_IMPORT_PROVENANCE scratch={scratch_root} verified={','.join(names)}")
 ```
 
-List only modules the selected tests are expected to exercise; modules intentionally kept absent MUST remain absent. If tests unload or replace modules, check provenance immediately after the relevant test-controlled import instead of relying on the session-end hook. For test-spawned child processes, add equivalent scratch-only location checks inside each child after its own configuration setup and controlled imports. A parent pytest check does not certify a child's imports. From the scratch root, a focused filename-utility run is:
+Then run fresh processes from the scratch root, with temporary files inside it:
 
 ```bash
 mkdir -p owned-temp
-PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$PWD/owned-temp" python -m pytest tests/test_filesystem.py --no-cov --basetemp="$PWD/owned-temp/pytest"
+PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$PWD/owned-temp" python -m pytest tests/test_<module>.py --no-cov -p no:cacheprovider --basetemp="$PWD/owned-temp/pytest"
 ```
 
-A run failing the import check is invalid evidence, rather than a surviving or killed mutant. Save required evidence outside disposable scratch before cleanup. `PYTHONPATH` and owned temporary paths do not replace the test bootstrap's settings isolation or service doubles.
+A valid run prints an `ACTUAL_IMPORT_PROVENANCE` line; an escaped import makes pytest exit with status 4. `--no-cov` and `-p no:cacheprovider` avoid reports and caches for focused probes; final gates keep the configured coverage reporting. Note pytest-randomly's seed for reproduction.
 
-The focused command uses `--no-cov` to avoid generating coverage artifacts for a narrow probe. The repository defaults generate coverage reports but enforce no coverage threshold; final gates retain the configured coverage reporting. Preserve pytest-randomly's reported seed when reproducing a failure, and identify order-dependent results.
+## Mutation evidence
 
-Retain the provenance line and the pytest outcome line for every run. For mutants, also retain the mutant diff and the excerpt of the relevant behavioral failure; full passing output, repeated tracebacks and per-test progress lines are not evidence.
+First run the selected tests unmutated, with the same command and hook, and confirm they pass. Choose mutants by protected invariant, not by count, and make each mutant perform the risky side effect (for example, actually replace a destination that should be kept) rather than merely prepare it. Before running, confirm that every path the mutant can reach, including destinations and link targets, is owned by the test, even if the mutant bypasses validation.
+
+A kill needs a relevant behavioral assertion failure. Collection, syntax, import and environment errors, or a failed provenance check, make the run invalid: neither a kill nor a survivor. If a run escapes ownership, stop it and any owned work, restore the candidate, and fix containment before retrying; never repeat the unsafe command unchanged. Investigate a surviving mutant before concluding coverage is missing.
+
+Whoever produces required evidence (normally the implementer; the reviewer checks it and fills gaps) records in the working record, per invariant: the candidate identity, mutant diff, selected test, exact command and seed, provenance line and relevant failure excerpt. Record invalid runs separately. Full passing logs and repeated tracebacks are unnecessary. Rerun affected cases when the candidate, mutant or selected tests change.
+
+## Cleanup
+
+Save essential evidence outside scratch, then delete the scratch directory and stop any owned processes.
