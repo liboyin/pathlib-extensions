@@ -4,20 +4,29 @@ import re
 __all__ = ['replace_os_reserved_chars', 'truncate_filename', 'build_filename']
 
 
+_RESERVED_CHARS = re.compile(r'[\\/*?:"<>|]')
+
+
 def replace_os_reserved_chars(text: str, replacement: str = '_') -> str:
     """
-    Replace OS-reserved characters in a string with a specified replacement character.
+    Replace OS-reserved characters in a string with a specified replacement.
 
     Should work on Windows, Linux, and macOS.
 
     Args:
         text (str): The input text.
-        replacement (str, optional): The replacement character. Defaults to '_'.
+        replacement (str, optional): The replacement string, which may be empty. Defaults to '_'.
 
     Returns:
         str: The modified text with reserved characters replaced by `replacement`.
+
+    Raises:
+        ValueError: If `replacement` itself contains an OS-reserved character.
     """
-    return re.sub(r'[\\/*?:"<>|]', replacement, text)
+    if _RESERVED_CHARS.search(replacement):
+        raise ValueError(f'Replacement {replacement!r} contains an OS-reserved character.')
+    # A callable keeps `replacement` literal instead of being parsed as a regex template.
+    return _RESERVED_CHARS.sub(lambda _: replacement, text)
 
 
 _EXTENSION_SUFFIX = re.compile(r'\.[A-Za-z0-9]+')

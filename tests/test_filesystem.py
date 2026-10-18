@@ -17,6 +17,22 @@ def test_remove_os_reserved_chars():
     assert replace_os_reserved_chars('file"name') == "file_name"
 
 
+@pytest.mark.parametrize('invalid_char', ['?', ':', '<', '>', '|', '/', '\\', '"', '*'])
+def test_replace_os_reserved_chars_with_invalid_replacement(invalid_char):
+    with pytest.raises(ValueError, match='contains an OS-reserved character'):
+        replace_os_reserved_chars("filename", replacement=invalid_char)
+
+
+def test_replace_os_reserved_chars_with_multi_char_invalid_replacement():
+    with pytest.raises(ValueError, match='contains an OS-reserved character'):
+        replace_os_reserved_chars("filename", replacement='a/b')
+
+
+@pytest.mark.parametrize('replacement, expected', [('', 'ab'), ('-', 'a-b'), ('__', 'a__b')])
+def test_replace_os_reserved_chars_with_valid_replacement(replacement, expected):
+    assert replace_os_reserved_chars('a:b', replacement=replacement) == expected
+
+
 def test_truncate_filename_no_change():
     path = Path("short_filename.txt")
     result = truncate_filename(path)
