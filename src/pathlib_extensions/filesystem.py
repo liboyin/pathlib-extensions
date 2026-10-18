@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-__all__ = ['build_filename', 'replace_os_reserved_chars', 'truncate_filename']
+__all__ = ['build_filename', 'get_extension_suffix', 'replace_os_reserved_chars', 'truncate_filename']
 
 
 _RESERVED_CHARS = re.compile(r'[\\/*?:"<>|]')
@@ -32,22 +32,24 @@ def replace_os_reserved_chars(text: str, replacement: str = '_') -> str:
 _EXTENSION_SUFFIX = re.compile(r'\.[A-Za-z0-9]+')
 
 
-def _extension_suffix(filename: str) -> str:
+def get_extension_suffix(path: str | Path) -> str:
     """
-    Return the trailing run of extension-like suffixes of a filename.
+    Return the trailing run of extension-like suffixes of the final path component.
 
     A suffix is extension-like when it is a dot followed only by ASCII letters or digits,
     so `.tar.gz` is kept whole while text after a dot inside a title, such as `. Smith`,
-    is not a suffix.
+    is not a suffix. The run stops at the first suffix, scanning from the end, that is
+    not extension-like. A leading dot, as in `.bashrc`, does not start a suffix, and
+    directory components are ignored.
 
     Args:
-        filename (str): A filename without directory components.
+        path (str | Path): The path whose final component is inspected.
 
     Returns:
-        str: The suffix run, such as '.tar.gz', or '' when the name has none.
+        str: The suffix run as written, such as '.tar.gz', or '' when the name has none.
     """
     suffix = ''
-    for part in reversed(Path(filename).suffixes):
+    for part in reversed(Path(path).suffixes):
         if not _EXTENSION_SUFFIX.fullmatch(part):
             break
         suffix = part + suffix
@@ -104,7 +106,7 @@ def truncate_filename(path: str | Path, max_length: int = 255) -> Path:
     filename = path.name
     if len(filename.encode('utf-8')) <= max_length:
         return path
-    suffix = _extension_suffix(filename)
+    suffix = get_extension_suffix(filename)
     name = _fit_stem(filename[:len(filename) - len(suffix)], suffix, max_length)
     if name is None:
         raise ValueError(f'Not possible to truncate filename to fit in {max_length} bytes: {path}')

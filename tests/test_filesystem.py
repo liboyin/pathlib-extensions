@@ -33,6 +33,51 @@ def test_replace_os_reserved_chars_with_valid_replacement(replacement, expected)
     assert testee.replace_os_reserved_chars('a:b', replacement=replacement) == expected
 
 
+@pytest.mark.parametrize(('name', 'expected'), [
+    ('archive.tar.gz', '.tar.gz'),
+    ('movie.MP4', '.MP4'),
+    ('Mr. Smith.mp4', '.mp4'),
+    ('Version 2.0 Notes.pdf', '.pdf'),
+    ('notes.v2.txt', '.v2.txt'),
+    ('backup.tar.old-copy.gz', '.gz'),
+    ('Title.bar-baz', ''),
+    ('Title.é', ''),
+    ('README', ''),
+    ('.bashrc', ''),
+    ('.bashrc.bak', '.bak'),
+    ('a..gz', '.gz'),
+    ('', ''),
+])
+def test_get_extension_suffix_returns_trailing_extension_like_run(name, expected):
+    """Only the trailing run of dot-plus-ASCII-alphanumeric suffixes is returned, as written."""
+    assert testee.get_extension_suffix(name) == expected
+
+
+@pytest.mark.parametrize('name', ['name.', 'archive.tar.', 'archive.tar.gz.', 'name..', '.bashrc.', 'Mr. Smith.mp4.'])
+def test_get_extension_suffix_returns_empty_for_trailing_dot(name):
+    """A name ending in a dot has no extension, although Path.suffixes differs across Python versions here."""
+    assert testee.get_extension_suffix(name) == ''
+
+
+@pytest.mark.parametrize('path', ['dir.d/file', Path('dir.d') / 'file', Path('dir.d/..')])
+def test_get_extension_suffix_ignores_directory_components(path):
+    """Dots in parent directories never contribute a suffix, for str and Path input."""
+    assert testee.get_extension_suffix(path) == ''
+
+
+def test_get_extension_suffix_inspects_final_component_of_path():
+    """A str or Path with directories yields the final component's suffix run."""
+    assert testee.get_extension_suffix('a.b/c.tar.gz') == '.tar.gz'
+    assert testee.get_extension_suffix(Path('a.b') / 'c.tar.gz') == '.tar.gz'
+
+
+def test_get_extension_suffix_is_exported_from_package():
+    """The function is part of the package's public API."""
+    import pathlib_extensions
+    assert pathlib_extensions.get_extension_suffix is testee.get_extension_suffix
+    assert 'get_extension_suffix' in testee.__all__
+
+
 def test_truncate_filename_no_change():
     path = Path("short_filename.txt")
     result = testee.truncate_filename(path)
@@ -129,6 +174,12 @@ def test_truncate_filename_treats_non_alphanumeric_dotted_text_as_stem(text):
     assert result.suffix == ".mp4"
     assert result.name.startswith("Title.")
     assert 219 <= len(result.name.encode('utf-8')) <= 220
+
+
+def test_truncate_filename_keeps_no_suffix_for_trailing_dot_name():
+    """A long name ending in a dot is truncated as stem text without keeping an extension."""
+    result = testee.truncate_filename(Path("d") / ("a" * 300 + ".txt."), max_length=10)
+    assert result == Path("d") / ("a" * 10)
 
 
 def test_truncate_filename_keeps_uppercase_extension():
