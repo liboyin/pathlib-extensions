@@ -54,6 +54,32 @@ def _extension_suffix(filename: str) -> str:
     return suffix
 
 
+def _fit_stem(stem: str, kept: str, max_length: int) -> str | None:
+    """
+    Join `stem` and `kept`, truncating only `stem` so the name fits in `max_length` bytes.
+
+    The stem is cut at a UTF-8 character boundary; `kept` is always kept whole.
+
+    Args:
+        stem (str): Text that may be truncated.
+        kept (str): Text appended after the stem and never truncated.
+        max_length (int): The maximum number of bytes.
+
+    Returns:
+        str | None: The joined name, or None if no whole stem character fits or the name
+            would be '.' or '..'.
+    """
+    stem_max_bytes_length = max_length - len(kept.encode('utf-8'))
+    # Cutting the encoded stem can split a multi-byte character.
+    # Decoding with errors='ignore' drops only that incomplete trailing character.
+    stem = stem.encode('utf-8')[:max(stem_max_bytes_length, 0)].decode('utf-8', errors='ignore')
+    name = stem + kept
+    # '.' and '..' would turn the result into a directory path.
+    if not stem or name in ('.', '..'):
+        return None
+    return name
+
+
 def truncate_filename(path: str | Path, max_length: int = 255) -> Path:
     """
     Truncate the filename such that it fits in `max_length` bytes.
@@ -79,14 +105,8 @@ def truncate_filename(path: str | Path, max_length: int = 255) -> Path:
     if len(filename.encode('utf-8')) <= max_length:
         return path
     suffix = _extension_suffix(filename)
-    stem_max_bytes_length = max_length - len(suffix.encode('utf-8'))
-    stem = filename[:len(filename) - len(suffix)]
-    # Cutting the encoded stem can split a multi-byte character; decoding with
-    # errors='ignore' drops only that incomplete trailing character.
-    stem = stem.encode('utf-8')[:max(stem_max_bytes_length, 0)].decode('utf-8', errors='ignore')
-    name = stem + suffix
-    # '.' and '..' would turn the result into a directory path.
-    if not stem or name in ('.', '..'):
+    name = _fit_stem(filename[:len(filename) - len(suffix)], suffix, max_length)
+    if name is None:
         raise ValueError(f'Not possible to truncate filename to fit in {max_length} bytes: {path}')
     result = path.parent / name
     print(f'Truncated path: {path} -> {result}')
@@ -118,13 +138,9 @@ def build_filename(text: str, suffix: str = '', *, tag: str = '', max_length: in
     """
     stem = replace_os_reserved_chars(text, replacement)
     kept = tag + suffix
-    stem_max_bytes_length = max_length - len(kept.encode('utf-8'))
     full_name = stem + kept
-    # Cutting the encoded stem can split a multi-byte character; decoding with
-    # errors='ignore' drops only that incomplete trailing character.
-    stem = stem.encode('utf-8')[:max(stem_max_bytes_length, 0)].decode('utf-8', errors='ignore')
-    name = stem + kept
-    if not stem or name in ('.', '..'):
+    name = _fit_stem(stem, kept, max_length)
+    if name is None:
         raise ValueError(f'Not possible to build a filename that fits in {max_length} bytes: {full_name}')
     if name != full_name:
         print(f'Truncated filename: {full_name} -> {name}')
