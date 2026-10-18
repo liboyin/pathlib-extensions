@@ -79,6 +79,11 @@ def test_prepare_input_file_check_suffix():
         testee.prepare_input_file(__file__, check_suffix='.txt')
 
 
+def test_prepare_input_file_matching_check_suffix_is_accepted():
+    """A file whose suffix matches the expected suffix is returned unchanged."""
+    assert testee.prepare_input_file(__file__, check_suffix='.py') == Path(__file__)
+
+
 def test_prepare_input_file_with_suffix():
     assert testee.prepare_input_file(__file__, with_suffix='.py') == Path(__file__)
 
@@ -86,6 +91,16 @@ def test_prepare_input_file_with_suffix():
 def test_prepare_input_file_invalid_argument():
     with pytest.raises(ValueError):
         testee.prepare_input_file(__file__, check_suffix='.txt', with_suffix='.txt')
+
+
+@requires_permission_enforcement
+def test_prepare_input_file_unreadable_raises_permission_error(tmp_path, restrict):
+    """An existing file without read permission is rejected."""
+    p = tmp_path / 'in.txt'
+    p.touch()
+    restrict(p, 0o200)
+    with pytest.raises(PermissionError):
+        testee.prepare_input_file(p)
 
 
 def test_prepare_output_dir_valid():
@@ -161,6 +176,12 @@ def test_prepare_output_file_check_suffix(tmp_path):
     p.touch()
     with pytest.raises(testee.SuffixError):
         testee.prepare_output_file(p, check_suffix='.py')
+
+
+def test_prepare_output_file_matching_check_suffix_is_accepted(tmp_path):
+    """An output file whose suffix matches the expected suffix is returned unchanged."""
+    p = tmp_path / "testfile.txt"
+    assert testee.prepare_output_file(p, check_suffix='.txt') == p
 
 
 def test_prepare_output_file_with_suffix(tmp_path):
