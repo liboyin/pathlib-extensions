@@ -20,7 +20,7 @@ If the reviewer, model or authentication is unavailable, report the blocker and 
 
 ### 1. Freeze, gate and snapshot — main agent
 
-Freeze the candidate and make `pytest` and `mypy .` pass on it. Create a working record in an owned directory outside the repository (`RECORD_DIR`, for example in the session scratchpad), disclosing it if storage is temporary. It holds:
+Freeze the candidate and make `pytest`, `mypy .` and `ruff check .` pass on it. Create a working record in an owned directory outside the repository (`RECORD_DIR`, for example in the session scratchpad), disclosing it if storage is temporary. It holds:
 
 - **Boundary and target:** intent, acceptance criteria, starting revision, in-scope uncommitted and untracked paths, and unrelated dirty paths to ignore.
 - **Candidate copy:** for uncommitted candidates, `git diff --binary HEAD` plus copies of in-scope untracked files (a diff omits their contents), so follow-ups can review the delta.

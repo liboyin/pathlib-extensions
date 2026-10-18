@@ -1,7 +1,7 @@
 from enum import Enum
 from pathlib import Path
 
-__all__ = ['OverwriteMode', 'user_confirms_overwrite', 'overwrite_existing_path', 'resolve_overwrite_mode']
+__all__ = ['OverwriteMode', 'overwrite_existing_path', 'resolve_overwrite_mode', 'user_confirms_overwrite']
 
 
 class OverwriteMode(str, Enum):

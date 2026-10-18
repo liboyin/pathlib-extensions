@@ -1,6 +1,6 @@
 from os import PathLike, fspath
 from pathlib import Path
-from typing import Any, Tuple, TypeVar
+from typing import Self, TypeVar
 
 __all__ = ['NullablePath']
 T = TypeVar('T')
@@ -8,7 +8,8 @@ T = TypeVar('T')
 
 # Optional* is already taken in Python; Maybe* is only used in Haskell. Nullable* should be less confusing?
 class NullablePath(PathLike):
-    def __new__(cls, *args, **kwargs) -> 'NullablePath':
+    def __new__(cls, *args, **kwargs) -> Self:
+        """Create an instance, ignoring constructor arguments, which `__init__` consumes."""
         return super().__new__(cls)
 
     def __init__(self, p: PathLike | str | None = None) -> None:
@@ -20,7 +21,13 @@ class NullablePath(PathLike):
     def __hash__(self) -> int:
         return hash(self.p)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
+        """Compare the wrapped path with another `NullablePath` or a `Path`.
+
+        Returns:
+            Whether the wrapped paths are equal, or `NotImplemented` for any other type, so Python falls back to the
+            reflected comparison or identity.
+        """
         if isinstance(other, NullablePath):
             return self.p == other.p
         if isinstance(other, Path):
@@ -51,7 +58,8 @@ class NullablePath(PathLike):
         return self.__class__()
 
     @property
-    def parents(self) -> Tuple['NullablePath', ...]:
+    def parents(self) -> tuple['NullablePath', ...]:
+        """The wrapped path's ancestors, each wrapped as a `NullablePath`; empty for a null path."""
         if self.p:
             return tuple(self.__class__(x) for x in self.p.parents)
         return ()

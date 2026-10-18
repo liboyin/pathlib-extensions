@@ -1,7 +1,7 @@
-from pathlib import Path
 import re
+from pathlib import Path
 
-__all__ = ['replace_os_reserved_chars', 'truncate_filename', 'build_filename']
+__all__ = ['build_filename', 'replace_os_reserved_chars', 'truncate_filename']
 
 
 _RESERVED_CHARS = re.compile(r'[\\/*?:"<>|]')

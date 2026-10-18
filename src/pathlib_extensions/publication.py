@@ -5,7 +5,7 @@ from pathlib import Path
 from pathlib_extensions.overwrite import OverwriteMode
 from pathlib_extensions.prepare import prepare_output_file
 
-__all__ = ['resolve_publication_target', 'publish_staged_file']
+__all__ = ['publish_staged_file', 'resolve_publication_target']
 
 
 def resolve_publication_target(path: Path) -> tuple[Path, int | None]:

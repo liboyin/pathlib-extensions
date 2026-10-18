@@ -4,11 +4,11 @@ from unittest import mock
 
 import pytest
 
-from pathlib_extensions.nullable import NullablePath
+import pathlib_extensions.nullable as testee
 
 
 def test_null_path():
-    np = NullablePath()
+    np = testee.NullablePath()
     assert not np
     assert fspath(np) == ''
     assert hash(np) == hash(None)
@@ -19,15 +19,15 @@ def test_null_path():
     for k in ['name', 'suffix', 'stem', 'root', 'anchor']:
         assert isinstance(getattr(type(np), k), property)
         assert getattr(np, k) == ''
-    assert isinstance(getattr(type(np), 'parent'), property)
+    assert isinstance(type(np).parent, property)
     assert np.parent == np
-    assert isinstance(getattr(type(np), 'parents'), property)
+    assert isinstance(type(np).parents, property)
     assert np.parents == ()
 
 
 def test_valid_path():
     p = Path(__file__)
-    np = NullablePath(p)
+    np = testee.NullablePath(p)
     assert np
     assert fspath(np) == fspath(p)
     assert hash(np) == hash(p)
@@ -39,47 +39,47 @@ def test_valid_path():
     for k in ['name', 'suffix', 'stem', 'root', 'anchor']:
         assert isinstance(getattr(type(np), k), property)
         assert getattr(np, k) == getattr(p, k)
-    assert isinstance(getattr(type(np), 'parent'), property)
+    assert isinstance(type(np).parent, property)
     assert np.parent.p == p.parent
-    assert isinstance(getattr(type(np), 'parents'), property)
+    assert isinstance(type(np).parents, property)
     for x, y in zip(np.parents, p.parents):
         assert x.p == y
 
 
 def test_concat():
-    assert NullablePath('a') / 'b' == NullablePath('a/b')
-    assert NullablePath('a') / Path('b') == NullablePath('a/b')
-    assert NullablePath('a') / NullablePath('b') == NullablePath('a/b')
-    assert NullablePath('a') / None == NullablePath()
-    assert NullablePath('a') / NullablePath() == NullablePath()
-    assert NullablePath() / None == NullablePath()
-    assert NullablePath() / 'b' == NullablePath()
-    assert NullablePath() / Path('b') == NullablePath()
-    assert NullablePath() / NullablePath() == NullablePath()
-    assert NullablePath() / NullablePath('b') == NullablePath()
+    assert testee.NullablePath('a') / 'b' == testee.NullablePath('a/b')
+    assert testee.NullablePath('a') / Path('b') == testee.NullablePath('a/b')
+    assert testee.NullablePath('a') / testee.NullablePath('b') == testee.NullablePath('a/b')
+    assert testee.NullablePath('a') / None == testee.NullablePath()
+    assert testee.NullablePath('a') / testee.NullablePath() == testee.NullablePath()
+    assert testee.NullablePath() / None == testee.NullablePath()
+    assert testee.NullablePath() / 'b' == testee.NullablePath()
+    assert testee.NullablePath() / Path('b') == testee.NullablePath()
+    assert testee.NullablePath() / testee.NullablePath() == testee.NullablePath()
+    assert testee.NullablePath() / testee.NullablePath('b') == testee.NullablePath()
     for left in [None, '/a']:
         with pytest.raises(TypeError):
-            left / NullablePath()  # type: ignore
+            left / testee.NullablePath()  # type: ignore
 
 
 def test_eq():
-    assert NullablePath() != ''
-    assert NullablePath() is not None
-    assert NullablePath() == NullablePath('')
-    assert NullablePath('a/b') != 'a/b'
-    assert NullablePath('a/b') == Path('a/b')
-    assert NullablePath('a/b') == NullablePath('a/b')
+    assert testee.NullablePath() != ''
+    assert testee.NullablePath() is not None
+    assert testee.NullablePath() == testee.NullablePath('')
+    assert testee.NullablePath('a/b') != 'a/b'
+    assert testee.NullablePath('a/b') == Path('a/b')
+    assert testee.NullablePath('a/b') == testee.NullablePath('a/b')
 
 
 def test_repr():
-    assert repr(NullablePath()) == 'NullablePath(None)'
-    assert str(NullablePath()) == 'NullablePath(None)'
-    assert repr(NullablePath('a/b')) == 'NullablePath(a/b)'
-    assert str(NullablePath('a/b')) == 'NullablePath(a/b)'
+    assert repr(testee.NullablePath()) == 'NullablePath(None)'
+    assert str(testee.NullablePath()) == 'NullablePath(None)'
+    assert repr(testee.NullablePath('a/b')) == 'NullablePath(a/b)'
+    assert str(testee.NullablePath('a/b')) == 'NullablePath(a/b)'
 
 
 def test_mkdir():
-    np = NullablePath()
+    np = testee.NullablePath()
     np.mkdir()
     np.p = mock.MagicMock()
     np.p.mkdir = mock_mkdir = mock.MagicMock()

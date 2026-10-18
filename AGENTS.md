@@ -46,7 +46,7 @@ This is a small, dependency-free library. Its public API is what each module exp
 # Validation and Review
 
 - Before implementation, record a passing baseline of the relevant checks on the starting revision. Fix a failing baseline in a separate, authorized change first.
-- The final code, test or configuration candidate MUST pass `pytest` and `mypy .` (matching CI). The suite is fast: rerun gates after substantive edits instead of reusing earlier results. Resolve new warnings or explain them.
+- The final code, test or configuration candidate MUST pass `pytest`, `mypy .` and `ruff check .` (matching CI). The suite is fast: rerun gates after substantive edits instead of reusing earlier results. Resolve new warnings or explain them.
 - Every non-trivial code, test or configuration change MUST pass the [review procedure](.agents/skills/adversarial-review/SKILL.md#procedure) before commit. A change is non-trivial if it could affect runtime behavior, the public API, test guarantees, build/configuration output or filesystem safety; when uncertain, review. Tightly coupled tasks committed together MAY share one review.
 - Documentation-only changes (including governance and skill prose) and read-only assessments are exempt from gates and formal review; verify their claims, links and diff instead, preserving safeguards and authorization boundaries. Documentation consumed by build or runtime tools as executable input follows the non-trivial rules.
 - Fix validated Blocking findings, then rerun gates and review. Non-blocking findings and Nits MAY be deferred with a recorded reason and revisit trigger, and MUST be reported to the user; deferrals that change scope, behavior or accepted risk need user agreement. Never silently discard or reclassify a finding.

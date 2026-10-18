@@ -28,3 +28,6 @@ jobs:
     - name: Run type check
       run: |
         mypy .
+    - name: Run lint
+      run: |
+        ruff check .
