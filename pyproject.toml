@@ -32,4 +32,8 @@ warn_unused_configs = true
 strict_optional = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=. --cov-report html  --cov-report=term"
+testpaths = ["tests"]
+addopts = "--cov=pathlib_extensions --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+branch = true
