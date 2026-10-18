@@ -51,7 +51,7 @@ The repository stays read-only for the reviewer. Writing evidence outside it is 
 
 ### 3. Investigate and report — reviewer
 
-Read current AGENTS.md, the complete candidate and the relevant source, tests and documentation. Try to falsify the change with boundary and failure cases, and look for tests that pass for the wrong reason. Where relevant, scrutinize UTF-8 byte limits and character boundaries, suffix handling, `NullablePath` semantics, overwrite decisions, symlink and hard-link behavior, permission preservation, publication races, failure cleanup, public API compatibility and support for every Python version in `requires-python`. Distinguish atomic replacement from power-loss durability. Do not manufacture findings or treat taste as a defect.
+Read current AGENTS.md, the complete candidate and the relevant source, tests and documentation. Try to falsify the change with boundary and failure cases, and look for tests that pass for the wrong reason. Where relevant, scrutinize UTF-8 byte limits and character boundaries, suffix handling, overwrite decisions, symlink and hard-link behavior, permission preservation, publication races, failure cleanup, public API compatibility and support for every Python version in `requires-python`. Distinguish atomic replacement from power-loss durability. Do not manufacture findings or treat taste as a defect.
 
 Classify each evidenced finding:
 
