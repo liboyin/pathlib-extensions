@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-__all__ = ['build_filename', 'get_extension_suffix', 'replace_os_reserved_chars', 'truncate_filename']
+__all__ = ['build_filename', 'get_extension_suffix', 'get_first_available_path', 'get_numbered_path', 'replace_os_reserved_chars', 'truncate_filename']
 
 
 _RESERVED_CHARS = re.compile(r'[\\/*?:"<>|]')
@@ -113,6 +113,75 @@ def truncate_filename(path: str | Path, max_length: int = 255) -> Path:
     result = path.parent / name
     print(f'Truncated path: {path} -> {result}')
     return result
+
+
+def get_numbered_path(path: str | Path, number: int, max_length: int = 255) -> Path:
+    """
+    Number a path by inserting `.{number}` before its trailing run of extension-like suffixes.
+
+    For example `hello.mp4` becomes `hello.1.mp4`, `video.en.srt` becomes `video.1.en.srt`
+    and `notes` becomes `notes.1`. The result is fitted in `max_length` bytes by
+    `truncate_filename`, which shortens only the stem and keeps the number, because `.1` is
+    itself extension-like. Directory components are never changed and the filesystem is not
+    consulted, so the result may already exist.
+
+    Args:
+        path (str | Path): The path to number.
+        number (int): A positive number to insert.
+        max_length (int, optional): The maximum number of bytes. Defaults to 255 for ext4.
+
+    Returns:
+        Path: The numbered path.
+
+    Raises:
+        ValueError: If `number` is not positive, or no stem character fits beside the
+            numbered suffix.
+    """
+    if number < 1:
+        raise ValueError(f'Number must be positive: {number}')
+    path = Path(path)
+    name = path.name
+    suffix = get_extension_suffix(name)
+    return truncate_filename(path.with_name(f'{name[:len(name) - len(suffix)]}.{number}{suffix}'), max_length)
+
+
+def get_first_available_path(path: str | Path, max_length: int = 255, max_attempts: int = 10) -> Path:
+    """
+    Return `path` if nothing exists there, otherwise its lowest-numbered free variant.
+
+    Numbered variants come from `get_numbered_path`, tried from 1 upwards after `path`, so a
+    gap such as a free `hello.1.mp4` beside a taken `hello.2.mp4` is reused. Any entry counts as taken,
+    including a directory or a dangling symlink. The answer is only a snapshot: the name may
+    be taken before the caller writes to it, so a writer that must not overwrite should still
+    create the file exclusively.
+
+    Args:
+        path (str | Path): The preferred path.
+        max_length (int, optional): The maximum number of bytes for a numbered name.
+            Defaults to 255 for ext4. `path` itself is returned unchanged when free.
+        max_attempts (int, optional): How many names to check in total, `path` included, so
+            numbers 1 to `max_attempts - 1` are tried; 1 checks only `path`. Defaults to 10.
+
+    Returns:
+        Path: The first path, in that order, at which nothing exists.
+
+    Raises:
+        ValueError: If `max_attempts` is less than 1, or no stem character fits beside a
+            numbered suffix.
+        FileExistsError: If all `max_attempts` names are taken.
+        OSError: If a candidate cannot be checked, for example because its directory is
+            not searchable; such a name is not reported as available.
+    """
+    if max_attempts < 1:
+        raise ValueError(f'max_attempts must be at least 1: {max_attempts}')
+    path = Path(path)
+    for number in range(max_attempts):
+        candidate = get_numbered_path(path, number, max_length) if number else path
+        try:
+            candidate.lstat()
+        except FileNotFoundError:
+            return candidate
+    raise FileExistsError(f'No available path within {max_attempts} attempts: {path}')
 
 
 def build_filename(text: str, suffix: str = '', *, tag: str = '', max_length: int = 255, replacement: str = '_') -> str:

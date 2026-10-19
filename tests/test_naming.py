@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -193,6 +194,146 @@ def test_truncate_filename_rejects_dot_or_dot_dot_result(name, max_length):
     """A truncated name of '.' or '..' raises instead of returning a directory path."""
     with pytest.raises(ValueError, match="Not possible to truncate"):
         testee.truncate_filename(Path("d") / name, max_length=max_length)
+
+
+@pytest.mark.parametrize(('name', 'number', 'expected'), [
+    ('hello.mp4', 1, 'hello.1.mp4'),
+    ('hello.mp4', 12, 'hello.12.mp4'),
+    ('video.en.srt', 1, 'video.1.en.srt'),
+    ('archive.tar.gz', 2, 'archive.2.tar.gz'),
+    ('notes', 1, 'notes.1'),
+    ('.bashrc', 1, '.bashrc.1'),
+    ('My talk. Part 2.mp4', 1, 'My talk. Part 2.1.mp4'),
+])
+def test_get_numbered_path_inserts_number_before_extension_like_suffixes(name, number, expected, capsys):
+    """The number goes before the whole trailing run of extension-like suffixes, silently."""
+    assert testee.get_numbered_path(Path('d') / name, number) == Path('d') / expected
+    assert capsys.readouterr().out == ''
+
+
+def test_get_numbered_path_accepts_str_and_keeps_directory_components():
+    """A str path is accepted and dotted directory components are left alone."""
+    assert testee.get_numbered_path('dir.d/sub.v2/hello.mp4', 1) == Path('dir.d/sub.v2/hello.1.mp4')
+
+
+def test_get_numbered_path_shortens_stem_of_a_maximal_name(capsys):
+    """A numbered name over the limit loses trailing stem text at a character boundary but keeps the number."""
+    path = Path('d') / ('é' * 125 + 'x.mp4')
+    assert len(path.name.encode('utf-8')) == 255
+    result = testee.get_numbered_path(path, 1)
+    assert result == Path('d') / ('é' * 124 + '.1.mp4')
+    assert len(result.name.encode('utf-8')) == 254
+    assert 'Truncated path' in capsys.readouterr().out
+
+
+def test_get_numbered_path_honours_custom_max_length():
+    """max_length bounds the numbered name in bytes."""
+    assert testee.get_numbered_path(Path('d/abcdef.mp4'), 1, max_length=10) == Path('d/abcd.1.mp4')
+
+
+def test_get_numbered_path_rejects_suffix_leaving_no_stem():
+    """A suffix run that leaves no room for a stem character raises ValueError."""
+    with pytest.raises(ValueError):
+        testee.get_numbered_path(Path('d') / ('a' + '.x' * 127), 1)
+
+
+@pytest.mark.parametrize('number', [0, -1])
+def test_get_numbered_path_rejects_non_positive_number(number):
+    """Zero and negative numbers raise ValueError."""
+    with pytest.raises(ValueError, match='positive'):
+        testee.get_numbered_path(Path('d/hello.mp4'), number)
+
+
+def test_get_numbered_path_is_exported_from_package():
+    """The function is part of the package's public API."""
+    import pathlib_extensions
+    assert pathlib_extensions.get_numbered_path is testee.get_numbered_path
+    assert 'get_numbered_path' in testee.__all__
+
+
+def test_get_first_available_path_returns_free_path_itself(tmp_path):
+    """A path with nothing at it is returned unnumbered, and nothing is created."""
+    assert testee.get_first_available_path(tmp_path / 'hello.mp4') == tmp_path / 'hello.mp4'
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_get_first_available_path_numbers_taken_path_from_one(tmp_path):
+    """A taken path yields the first numbered variant, leaving the existing file alone."""
+    (tmp_path / 'video.en.srt').write_text('old')
+    assert testee.get_first_available_path(tmp_path / 'video.en.srt') == tmp_path / 'video.1.en.srt'
+    assert [p.name for p in tmp_path.iterdir()] == ['video.en.srt']
+
+
+def test_get_first_available_path_reuses_lowest_free_number(tmp_path):
+    """A gap in the numbering is filled before higher numbers."""
+    for name in ['hello.mp4', 'hello.2.mp4', 'hello.3.mp4']:
+        (tmp_path / name).write_text('x')
+    assert testee.get_first_available_path(tmp_path / 'hello.mp4') == tmp_path / 'hello.1.mp4'
+
+
+def test_get_first_available_path_counts_directories_and_dangling_symlinks_as_taken(tmp_path):
+    """A file, a directory and a dangling symlink each take a name."""
+    (tmp_path / 'hello.mp4').write_text('x')
+    (tmp_path / 'hello.1.mp4').mkdir()
+    (tmp_path / 'hello.2.mp4').symlink_to('missing.mp4')
+    assert testee.get_first_available_path(str(tmp_path / 'hello.mp4')) == tmp_path / 'hello.3.mp4'
+
+
+def test_get_first_available_path_fits_numbered_names_in_max_length(tmp_path):
+    """Numbered candidates are fitted to max_length bytes."""
+    (tmp_path / 'abcdef.mp4').write_text('x')
+    assert testee.get_first_available_path(tmp_path / 'abcdef.mp4', max_length=10) == tmp_path / 'abcd.1.mp4'
+
+
+@pytest.mark.skipif(os.name != 'posix' or os.geteuid() == 0, reason='POSIX permission bits are only enforced for non-root users')
+def test_get_first_available_path_raises_when_names_cannot_be_checked(tmp_path):
+    """An unsearchable directory raises PermissionError instead of reporting a name as free."""
+    directory = tmp_path / 'locked'
+    directory.mkdir()
+    directory.chmod(0o600)
+    try:
+        with pytest.raises(PermissionError):
+            testee.get_first_available_path(directory / 'hello.mp4')
+    finally:
+        directory.chmod(0o700)
+
+
+def test_get_first_available_path_defaults_to_ten_attempts(tmp_path):
+    """By default ten names are checked: the path itself, then numbers 1 to 9."""
+    for name in ['hello.mp4'] + [f'hello.{n}.mp4' for n in range(1, 9)]:
+        (tmp_path / name).write_text('x')
+    assert testee.get_first_available_path(tmp_path / 'hello.mp4') == tmp_path / 'hello.9.mp4'
+    (tmp_path / 'hello.9.mp4').write_text('x')
+    with pytest.raises(FileExistsError, match='10 attempts'):
+        testee.get_first_available_path(tmp_path / 'hello.mp4')
+
+
+@pytest.mark.parametrize(('taken', 'max_attempts', 'expected'), [(0, 1, 'hello.mp4'), (2, 3, 'hello.2.mp4'), (1, 1, None), (3, 3, None)])
+def test_get_first_available_path_checks_max_attempts_names(taken, max_attempts, expected, tmp_path):
+    """Exactly max_attempts names are checked, the path included; exhausting them raises FileExistsError."""
+    names = ['hello.mp4'] + [f'hello.{n}.mp4' for n in range(1, 10)]
+    for name in names[:taken]:
+        (tmp_path / name).write_text('x')
+    if expected is None:
+        with pytest.raises(FileExistsError):
+            testee.get_first_available_path(tmp_path / 'hello.mp4', max_attempts=max_attempts)
+    else:
+        assert testee.get_first_available_path(tmp_path / 'hello.mp4', max_attempts=max_attempts) == tmp_path / expected
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted(names[:taken])
+
+
+@pytest.mark.parametrize('max_attempts', [0, -1])
+def test_get_first_available_path_rejects_max_attempts_below_one(max_attempts, tmp_path):
+    """max_attempts below 1 raises ValueError."""
+    with pytest.raises(ValueError, match='max_attempts'):
+        testee.get_first_available_path(tmp_path / 'hello.mp4', max_attempts=max_attempts)
+
+
+def test_get_first_available_path_is_exported_from_package():
+    """The function is part of the package's public API."""
+    import pathlib_extensions
+    assert pathlib_extensions.get_first_available_path is testee.get_first_available_path
+    assert 'get_first_available_path' in testee.__all__
 
 
 def test_build_filename_replaces_reserved_characters_without_truncating(capsys):
