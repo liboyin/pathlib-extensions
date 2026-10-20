@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
 
 import pytest
 
 import pathlib_extensions.overwrite as testee
+from pathlib_extensions.prepare import NotAFileError
 
 
 def test_overwrite_mode():
@@ -104,3 +106,149 @@ def test_resolve_overwrite_mode_checks_file_behind_symlink(tmp_path):
     link = tmp_path / 'link.bin'
     link.symlink_to(real.name)
     assert testee.resolve_overwrite_mode(link, testee.OverwriteMode.NEVER) is None
+
+
+def test_overwrite_policy_values_are_the_choices_in_declaration_order():
+    """values() lists every policy's string value in declaration order."""
+    assert testee.OverwritePolicy.values() == ('always', 'never', 'rename')
+
+
+def test_overwrite_policy_is_exported_alongside_overwrite_mode():
+    """OverwritePolicy is public and separate from the unchanged OverwriteMode."""
+    import pathlib_extensions
+    assert pathlib_extensions.OverwritePolicy is testee.OverwritePolicy
+    assert testee.OverwritePolicy is not testee.OverwriteMode
+    assert testee.OverwriteMode.values() == ('always', 'never', 'prompt', 'rename')
+
+
+@pytest.mark.parametrize('policy', list(testee.OverwritePolicy))
+def test_overwrite_policy_resolve_returns_absent_path_silently(policy, tmp_path, capsys):
+    """Every policy writes to a path with nothing at it, without a message or any filesystem change."""
+    path = tmp_path / 'hello.mp4'
+    assert policy.resolve(path) == path
+    assert capsys.readouterr().out == ''
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('via_symlink', [False, True], ids=['file', 'symlink'])
+def test_overwrite_policy_resolve_always_overwrites_existing_file(via_symlink, tmp_path, capsys):
+    """ALWAYS returns the path of a file, or a symlink to one, and says it will overwrite it."""
+    real = tmp_path / 'hello.mp4'
+    real.write_bytes(b'old')
+    path = real
+    if via_symlink:
+        path = tmp_path / 'link.mp4'
+        path.symlink_to(real.name)
+    assert testee.OverwritePolicy.ALWAYS.resolve(path) == path
+    assert capsys.readouterr().out == f'Overwriting path: {path}\n'
+    assert real.read_bytes() == b'old'
+
+
+@pytest.mark.parametrize('via_symlink', [False, True], ids=['file', 'symlink'])
+def test_overwrite_policy_resolve_never_keeps_existing_file(via_symlink, tmp_path, capsys):
+    """NEVER returns None for a file, or a symlink to one, and says it will not overwrite."""
+    real = tmp_path / 'hello.mp4'
+    real.write_bytes(b'old')
+    path = real
+    if via_symlink:
+        path = tmp_path / 'link.mp4'
+        path.symlink_to(real.name)
+    assert testee.OverwritePolicy.NEVER.resolve(path) is None
+    assert capsys.readouterr().out == f'Not overwriting path: {path}\n'
+    assert real.read_bytes() == b'old'
+
+
+@pytest.mark.parametrize('policy', [testee.OverwritePolicy.ALWAYS, testee.OverwritePolicy.NEVER])
+def test_overwrite_policy_resolve_writes_through_dangling_symlink(policy, tmp_path, capsys):
+    """Under ALWAYS and NEVER a dangling symlink holds no file, so its path is returned silently."""
+    path = tmp_path / 'hello.mp4'
+    path.symlink_to('missing.mp4')
+    assert policy.resolve(path) == path
+    assert capsys.readouterr().out == ''
+    assert path.is_symlink() and not (tmp_path / 'missing.mp4').exists()
+
+
+@pytest.mark.parametrize('policy', [testee.OverwritePolicy.ALWAYS, testee.OverwritePolicy.NEVER])
+@pytest.mark.parametrize('entry', ['directory', 'directory-symlink', 'fifo'])
+def test_overwrite_policy_resolve_rejects_existing_non_file(policy, entry, tmp_path, capsys):
+    """Under ALWAYS and NEVER a directory, symlink to one, or FIFO raises NotAFileError, untouched."""
+    path = tmp_path / 'hello.mp4'
+    if entry == 'directory':
+        path.mkdir()
+    elif entry == 'directory-symlink':
+        (tmp_path / 'dir').mkdir()
+        path.symlink_to('dir')
+    else:
+        if not hasattr(os, 'mkfifo'):
+            pytest.skip('FIFOs need os.mkfifo')
+        os.mkfifo(path)
+    before = sorted(p.name for p in tmp_path.iterdir())
+    with pytest.raises(NotAFileError):
+        policy.resolve(path)
+    assert capsys.readouterr().out == ''
+    assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
+@pytest.mark.skipif(os.name != 'posix' or os.geteuid() == 0, reason='POSIX permission bits are only enforced for non-root users')
+@pytest.mark.parametrize('policy', [testee.OverwritePolicy.ALWAYS, testee.OverwritePolicy.NEVER])
+def test_overwrite_policy_resolve_raises_when_path_cannot_be_checked(policy, tmp_path):
+    """An unsearchable directory raises PermissionError instead of being treated as no file."""
+    directory = tmp_path / 'locked'
+    directory.mkdir()
+    directory.chmod(0o600)
+    try:
+        with pytest.raises(PermissionError):
+            policy.resolve(directory / 'hello.mp4')
+    finally:
+        directory.chmod(0o700)
+
+
+@pytest.mark.parametrize('entry', ['file', 'directory', 'dangling-symlink'])
+def test_overwrite_policy_resolve_rename_numbers_beside_any_existing_entry(entry, tmp_path, capsys):
+    """RENAME treats any entry as taken and returns the first free numbered path, saying so."""
+    path = tmp_path / 'hello.mp4'
+    if entry == 'file':
+        path.write_bytes(b'old')
+    elif entry == 'directory':
+        path.mkdir()
+    else:
+        path.symlink_to('missing.mp4')
+    (tmp_path / 'hello.1.mp4').write_bytes(b'one')
+    before = sorted(p.name for p in tmp_path.iterdir())
+    assert testee.OverwritePolicy.RENAME.resolve(path) == tmp_path / 'hello.2.mp4'
+    assert capsys.readouterr().out == f'Not overwriting path: {path}, writing to: {tmp_path / "hello.2.mp4"}\n'
+    assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
+def test_overwrite_policy_resolve_rename_raises_when_every_attempt_is_taken(tmp_path):
+    """RENAME raises FileExistsError when the path and its numbered variants are all taken."""
+    for name in ['hello.mp4'] + [f'hello.{n}.mp4' for n in range(1, 10)]:
+        (tmp_path / name).write_bytes(b'x')
+    with pytest.raises(FileExistsError):
+        testee.OverwritePolicy.RENAME.resolve(tmp_path / 'hello.mp4')
+
+
+def test_overwrite_policy_resolve_rename_honours_max_length(tmp_path):
+    """Under RENAME, max_length bounds the numbered name in bytes."""
+    path = tmp_path / 'abcdef.mp4'
+    path.write_bytes(b'old')
+    assert testee.OverwritePolicy.RENAME.resolve(path, max_length=10) == tmp_path / 'abcd.1.mp4'
+
+
+@pytest.mark.parametrize(('max_attempts', 'expected'), [(1, None), (2, 'hello.1.mp4')])
+def test_overwrite_policy_resolve_rename_honours_max_attempts(max_attempts, expected, tmp_path):
+    """Under RENAME, max_attempts bounds how many names are checked."""
+    path = tmp_path / 'hello.mp4'
+    path.write_bytes(b'old')
+    if expected is None:
+        with pytest.raises(FileExistsError):
+            testee.OverwritePolicy.RENAME.resolve(path, max_attempts=max_attempts)
+    else:
+        assert testee.OverwritePolicy.RENAME.resolve(path, max_attempts=max_attempts) == tmp_path / expected
+
+
+@pytest.mark.parametrize('policy', [testee.OverwritePolicy.ALWAYS, testee.OverwritePolicy.NEVER])
+def test_overwrite_policy_resolve_ignores_rename_limits_for_other_policies(policy, tmp_path):
+    """max_length and max_attempts only matter under RENAME."""
+    path = tmp_path / 'hello.mp4'
+    assert policy.resolve(path, max_length=1, max_attempts=1) == path
