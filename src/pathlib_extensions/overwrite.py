@@ -1,4 +1,5 @@
 import stat
+import warnings
 from enum import Enum
 from pathlib import Path
 
@@ -9,6 +10,20 @@ __all__ = ['OverwriteMode', 'OverwritePolicy', 'overwrite_existing_path', 'resol
 
 
 class OverwriteMode(str, Enum):
+    """
+    How to treat an existing file or directory path.
+
+    Deprecated: use `OverwritePolicy`, which has no PROMPT. Members and attribute access do
+    not warn, so that star imports of this package stay silent; `values()` and the functions
+    taking an `OverwriteMode` emit a DeprecationWarning.
+
+    Attributes:
+        ALWAYS: Always overwrite an existing path.
+        NEVER: Never overwrite an existing path.
+        PROMPT: Ask the user whether to overwrite an existing path.
+        RENAME: Never overwrite an existing path, but instead rename the new one.
+    """
+
     ALWAYS = "always"
     NEVER = "never"
     PROMPT = "prompt"
@@ -16,13 +31,28 @@ class OverwriteMode(str, Enum):
 
     @classmethod
     def values(cls) -> tuple[str, ...]:
+        """
+        Return every mode's string value in declaration order.
+
+        Deprecated: use `OverwritePolicy.values`. This emits a DeprecationWarning.
+        """
+        warnings.warn('OverwriteMode is deprecated; use OverwritePolicy instead', DeprecationWarning, stacklevel=2)
         return tuple(mode.value for mode in cls)
 
 
 def user_confirms_overwrite(path: Path) -> bool:
     """
     Prompts the user to confirm overwriting an existing file/directory path.
+
+    Deprecated: use `OverwritePolicy.resolve`, which decides without prompting. This emits a
+    DeprecationWarning, then prompts as before.
     """
+    warnings.warn('user_confirms_overwrite is deprecated; use OverwritePolicy.resolve instead', DeprecationWarning, stacklevel=2)
+    return _user_confirms_overwrite(path)
+
+
+def _user_confirms_overwrite(path: Path) -> bool:
+    """Prompt the user to confirm overwriting `path`; the implementation of `user_confirms_overwrite`."""
     user_input = input(f"Path '{path}' already exists. Overwrite? (y/N): ").strip().lower()
     return user_input == 'y'
 
@@ -31,12 +61,28 @@ def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
     """
     Returns whether to overwrite an existing file/directory path based on the specified overwrite mode.
 
+    Deprecated: use `OverwritePolicy.resolve`. This emits a DeprecationWarning, then behaves
+    as before.
+
     Args:
         path (Path): An existing file/directory path.
         overwrite_mode (OverwriteMode): Always, never, prompt user, or rename.
 
     Returns:
         bool: True if the path should be overwritten, False otherwise.
+    """
+    warnings.warn('overwrite_existing_path is deprecated; use OverwritePolicy.resolve instead', DeprecationWarning, stacklevel=2)
+    return _overwrite_existing_path(path, overwrite_mode)
+
+
+def _overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
+    """
+    Decide whether to overwrite an existing path; the implementation of `overwrite_existing_path`.
+
+    Prompts through `_user_confirms_overwrite`, so a single deprecated call warns only once.
+
+    Raises:
+        FileNotFoundError: If `path` does not exist.
     """
     if not path.exists():
         raise FileNotFoundError(path)
@@ -50,7 +96,7 @@ def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
             print(not_overwrite_message)
             return False
         case OverwriteMode.PROMPT:
-            if not user_confirms_overwrite(path):
+            if not _user_confirms_overwrite(path):
                 print(not_overwrite_message)
                 return False
             print(overwrite_message)
@@ -62,6 +108,9 @@ def overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
 def resolve_overwrite_mode(path: Path, overwrite_mode: OverwriteMode) -> OverwriteMode | None:
     """
     Decide before any expensive work whether a file may be written at `path`.
+
+    Deprecated: use `OverwritePolicy.resolve`. This emits a DeprecationWarning, then behaves
+    as before.
 
     Only an existing file, or a symlink to one, is checked with `overwrite_existing_path`;
     for any other path `overwrite_mode` is returned unchanged and the writer itself rejects
@@ -76,9 +125,10 @@ def resolve_overwrite_mode(path: Path, overwrite_mode: OverwriteMode) -> Overwri
         to carry into the write, with an approved PROMPT turned into ALWAYS so that later
         checks do not ask again.
     """
+    warnings.warn('resolve_overwrite_mode is deprecated; use OverwritePolicy.resolve instead', DeprecationWarning, stacklevel=2)
     if not path.is_file():
         return overwrite_mode
-    if not overwrite_existing_path(path, overwrite_mode):
+    if not _overwrite_existing_path(path, overwrite_mode):
         return None
     return OverwriteMode.ALWAYS if overwrite_mode == OverwriteMode.PROMPT else overwrite_mode
 

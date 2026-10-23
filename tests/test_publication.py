@@ -12,6 +12,11 @@ PUBLISHING = list(OverwritePolicy)
 KEEPING = [OverwritePolicy.NEVER, OverwritePolicy.RENAME]
 
 
+def deprecated():
+    """Expect the DeprecationWarning, pointing to StagedFile, of a deprecated publication function."""
+    return pytest.warns(DeprecationWarning, match='use StagedFile')
+
+
 def make_stage(directory: Path, content: bytes = b'new', mode: int = 0o600) -> Path:
     """Create a completed stage file with known content and mode."""
     stage = directory / '.stage.tmp'
@@ -23,7 +28,8 @@ def make_stage(directory: Path, content: bytes = b'new', mode: int = 0o600) -> P
 def test_resolve_publication_target_absent_file_creates_parent_and_has_no_mode(tmp_path):
     """A missing destination resolves to itself, gains its parent and has no mode."""
     path = tmp_path / 'new' / 'out.bin'
-    assert testee.resolve_publication_target(path) == (path.resolve(), None)
+    with deprecated():
+        assert testee.resolve_publication_target(path) == (path.resolve(), None)
     assert path.parent.is_dir()
 
 
@@ -32,7 +38,8 @@ def test_resolve_publication_target_captures_existing_permission_bits(tmp_path):
     path = tmp_path / 'out.bin'
     path.write_bytes(b'old')
     path.chmod(0o2640)
-    assert testee.resolve_publication_target(path) == (path, 0o2640)
+    with deprecated():
+        assert testee.resolve_publication_target(path) == (path, 0o2640)
 
 
 def test_resolve_publication_target_follows_symlink_to_existing_file(tmp_path):
@@ -42,14 +49,16 @@ def test_resolve_publication_target_follows_symlink_to_existing_file(tmp_path):
     real.chmod(0o640)
     link = tmp_path / 'link.bin'
     link.symlink_to(real.name)
-    assert testee.resolve_publication_target(link) == (real, 0o640)
+    with deprecated():
+        assert testee.resolve_publication_target(link) == (real, 0o640)
 
 
 def test_resolve_publication_target_prepares_dangling_symlink_target_parent(tmp_path):
     """A dangling symlink resolves to its missing target, whose parent is created."""
     link = tmp_path / 'link.bin'
     link.symlink_to(tmp_path / 'missing' / 'real.bin')
-    assert testee.resolve_publication_target(link) == (tmp_path / 'missing' / 'real.bin', None)
+    with deprecated():
+        assert testee.resolve_publication_target(link) == (tmp_path / 'missing' / 'real.bin', None)
     assert (tmp_path / 'missing').is_dir()
 
 
@@ -58,7 +67,7 @@ def test_resolve_publication_target_rejects_symlink_to_directory(tmp_path):
     (tmp_path / 'dir').mkdir()
     link = tmp_path / 'link.bin'
     link.symlink_to('dir')
-    with pytest.raises(NotAFileError):
+    with pytest.raises(NotAFileError), deprecated():
         testee.resolve_publication_target(link)
 
 
@@ -68,21 +77,23 @@ def test_resolve_publication_target_keeping_policies_capture_no_mode_from_existi
     path = tmp_path / 'out.bin'
     path.write_bytes(b'old')
     path.chmod(0o640)
-    assert testee.resolve_publication_target(path, policy) == (path, None)
+    with deprecated():
+        assert testee.resolve_publication_target(path, policy) == (path, None)
 
 
 @pytest.mark.parametrize('policy', KEEPING)
 def test_resolve_publication_target_keeping_policies_create_parent_of_absent_file(policy, tmp_path):
     """Under NEVER and RENAME a missing destination still gains its parent directory."""
     path = tmp_path / 'new' / 'out.bin'
-    assert testee.resolve_publication_target(path, policy) == (path, None)
+    with deprecated():
+        assert testee.resolve_publication_target(path, policy) == (path, None)
     assert path.parent.is_dir()
 
 
 @pytest.mark.parametrize('policy', KEEPING)
 def test_resolve_publication_target_keeping_policies_reject_directory(policy, tmp_path):
     """Under NEVER and RENAME a destination that is a directory is still rejected."""
-    with pytest.raises(NotAFileError):
+    with pytest.raises(NotAFileError), deprecated():
         testee.resolve_publication_target(tmp_path, policy)
 
 
@@ -94,9 +105,10 @@ def test_resolve_publication_target_requires_writable_existing_file_only_under_a
     path.write_bytes(b'old')
     path.chmod(0o400)
     if accepted:
-        assert testee.resolve_publication_target(path, policy) == (path, None)
+        with deprecated():
+            assert testee.resolve_publication_target(path, policy) == (path, None)
     else:
-        with pytest.raises(PermissionError):
+        with pytest.raises(PermissionError), deprecated():
             testee.resolve_publication_target(path, policy)
     assert path.read_bytes() == b'old'
     assert path.stat().st_mode & 0o7777 == 0o400
@@ -117,11 +129,20 @@ def test_resolve_publication_target_rejects_writable_file_in_unwritable_director
         path.symlink_to(real)
     directory.chmod(0o500)
     try:
-        with pytest.raises(PermissionError):
+        with pytest.raises(PermissionError), deprecated():
             testee.resolve_publication_target(path, policy)
     finally:
         directory.chmod(0o700)
     assert real.read_bytes() == b'old'
+
+
+def test_resolve_publication_target_warns_once_naming_staged_file(tmp_path):
+    """resolve_publication_target emits one DeprecationWarning, attributed to its caller, that points to StagedFile."""
+    with pytest.warns(DeprecationWarning) as record:
+        testee.resolve_publication_target(tmp_path / 'out.bin')
+    assert len(record) == 1
+    assert str(record[0].message) == 'resolve_publication_target is deprecated; use StagedFile instead'
+    assert record[0].filename == __file__
 
 
 def test_publish_staged_file_replaces_existing_file_and_retains_its_mode(tmp_path):
@@ -130,7 +151,8 @@ def test_publish_staged_file_replaces_existing_file_and_retains_its_mode(tmp_pat
     target.write_bytes(b'old')
     target.chmod(0o640)
     stage = make_stage(tmp_path)
-    assert testee.publish_staged_file(stage, target, 0o640, OverwritePolicy.ALWAYS) == target
+    with deprecated():
+        assert testee.publish_staged_file(stage, target, 0o640, OverwritePolicy.ALWAYS) == target
     assert target.read_bytes() == b'new'
     assert target.stat().st_mode & 0o7777 == 0o640
     assert not stage.exists()
@@ -139,7 +161,8 @@ def test_publish_staged_file_replaces_existing_file_and_retains_its_mode(tmp_pat
 def test_publish_staged_file_without_mode_keeps_stage_permissions(tmp_path):
     """Without a captured mode, the published file keeps the stage's own permissions."""
     target = tmp_path / 'out.bin'
-    testee.publish_staged_file(make_stage(tmp_path, mode=0o604), target, None, OverwritePolicy.ALWAYS)
+    with deprecated():
+        testee.publish_staged_file(make_stage(tmp_path, mode=0o604), target, None, OverwritePolicy.ALWAYS)
     assert target.stat().st_mode & 0o7777 == 0o604
 
 
@@ -152,8 +175,10 @@ def test_publish_staged_file_replacement_follows_symlink_and_keeps_hardlink_alia
     os.link(real, alias)
     link = tmp_path / 'link.bin'
     link.symlink_to(real.name)
-    target, mode = testee.resolve_publication_target(link)
-    testee.publish_staged_file(make_stage(tmp_path), target, mode, OverwritePolicy.ALWAYS)
+    with deprecated():
+        target, mode = testee.resolve_publication_target(link)
+    with deprecated():
+        testee.publish_staged_file(make_stage(tmp_path), target, mode, OverwritePolicy.ALWAYS)
     assert link.is_symlink()
     assert link.read_bytes() == real.read_bytes() == b'new'
     assert real.stat().st_mode & 0o7777 == 0o640
@@ -169,7 +194,7 @@ def test_publish_staged_file_mode_failure_publishes_nothing(policy, existing, mo
         target.write_bytes(b'old')
     stage = make_stage(tmp_path)
     mocker.patch.object(Path, 'chmod', side_effect=PermissionError('chmod failed'))
-    with pytest.raises(PermissionError, match='chmod failed'):
+    with pytest.raises(PermissionError, match='chmod failed'), deprecated():
         testee.publish_staged_file(stage, target, 0o640, policy)
     assert (target.read_bytes() == b'old') if existing else not target.exists()
     assert stage.read_bytes() == b'new'
@@ -180,7 +205,8 @@ def test_publish_staged_file_links_absent_target(policy, tmp_path, capsys):
     """NEVER and RENAME publish to an absent target by hard link, under its own name."""
     target = tmp_path / 'out.bin'
     stage = make_stage(tmp_path)
-    assert testee.publish_staged_file(stage, target, None, policy) == target
+    with deprecated():
+        assert testee.publish_staged_file(stage, target, None, policy) == target
     assert capsys.readouterr().out == ''
     assert target.read_bytes() == b'new'
     assert os.path.samefile(stage, target)
@@ -197,7 +223,8 @@ def test_publish_staged_file_never_keeps_completed_competitor(competitor, tmp_pa
         other.write_bytes(b'competitor')
         target.symlink_to(other.name)
     stage = make_stage(tmp_path)
-    assert testee.publish_staged_file(stage, target, None, OverwritePolicy.NEVER) is None
+    with deprecated():
+        assert testee.publish_staged_file(stage, target, None, OverwritePolicy.NEVER) is None
     assert target.read_bytes() == b'competitor'
     assert target.is_symlink() == (competitor == 'file-symlink')
     assert stage.read_bytes() == b'new'
@@ -211,7 +238,7 @@ def test_publish_staged_file_never_raises_for_non_file_competitor(competitor, tm
         target.mkdir()
     else:
         target.symlink_to('missing.bin')
-    with pytest.raises(FileExistsError):
+    with pytest.raises(FileExistsError), deprecated():
         testee.publish_staged_file(make_stage(tmp_path), target, None, OverwritePolicy.NEVER)
     assert target.is_dir() if competitor == 'directory' else target.is_symlink() and not target.exists()
 
@@ -221,7 +248,7 @@ def test_publish_staged_file_unsupported_hard_link_propagates_without_fallback(p
     """An unsupported hard link raises instead of falling back to an overwriting move."""
     target = tmp_path / 'out.bin'
     mocker.patch.object(os, 'link', side_effect=OSError(errno.EOPNOTSUPP, 'unsupported link'))
-    with pytest.raises(OSError, match='unsupported link'):
+    with pytest.raises(OSError, match='unsupported link'), deprecated():
         testee.publish_staged_file(make_stage(tmp_path), target, None, policy)
     assert not target.exists()
 
@@ -231,7 +258,7 @@ def test_publish_staged_file_replacement_failure_preserves_previous_file(mocker,
     target = tmp_path / 'out.bin'
     target.write_bytes(b'old')
     mocker.patch.object(Path, 'replace', side_effect=PermissionError('replace failed'))
-    with pytest.raises(PermissionError, match='replace failed'):
+    with pytest.raises(PermissionError, match='replace failed'), deprecated():
         testee.publish_staged_file(make_stage(tmp_path), target, None, OverwritePolicy.ALWAYS)
     assert target.read_bytes() == b'old'
 
@@ -241,7 +268,8 @@ def test_publish_staged_file_rename_publishes_beside_existing_file(tmp_path, cap
     target = tmp_path / 'hello.mp4'
     target.write_bytes(b'old')
     stage = make_stage(tmp_path)
-    published = testee.publish_staged_file(stage, target, None, OverwritePolicy.RENAME)
+    with deprecated():
+        published = testee.publish_staged_file(stage, target, None, OverwritePolicy.RENAME)
     assert published is not None
     assert published == tmp_path / 'hello.1.mp4'
     assert published.read_bytes() == b'new'
@@ -257,7 +285,8 @@ def test_publish_staged_file_rename_skips_every_taken_name_untouched(tmp_path):
     (tmp_path / 'hello.1.mp4').write_bytes(b'one')
     (tmp_path / 'hello.2.mp4').mkdir()
     (tmp_path / 'hello.3.mp4').symlink_to('missing.mp4')
-    published = testee.publish_staged_file(make_stage(tmp_path), target, None, OverwritePolicy.RENAME)
+    with deprecated():
+        published = testee.publish_staged_file(make_stage(tmp_path), target, None, OverwritePolicy.RENAME)
     assert published is not None
     assert published == tmp_path / 'hello.4.mp4'
     assert published.read_bytes() == b'new'
@@ -273,7 +302,7 @@ def test_publish_staged_file_rename_raises_when_no_numbered_name_fits(tmp_path):
     assert len(target.name.encode('utf-8')) == 255
     target.write_bytes(b'old')
     stage = make_stage(tmp_path)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError), deprecated():
         testee.publish_staged_file(stage, target, None, OverwritePolicy.RENAME)
     assert target.read_bytes() == b'old'
     assert stage.read_bytes() == b'new'
@@ -289,12 +318,23 @@ def test_publish_staged_file_rename_applies_mode_to_new_file_only(tmp_path):
     alias = tmp_path / 'alias.mp4'
     os.link(target, alias)
     before = target.stat()
-    published = testee.publish_staged_file(make_stage(tmp_path, mode=0o600), target, 0o640, OverwritePolicy.RENAME)
+    with deprecated():
+        published = testee.publish_staged_file(make_stage(tmp_path, mode=0o600), target, 0o640, OverwritePolicy.RENAME)
     assert published is not None
     assert published.stat().st_mode & 0o7777 == 0o640
     after = target.stat()
     assert (after.st_ino, after.st_mode & 0o7777) == (before.st_ino, 0o604)
     assert target.read_bytes() == alias.read_bytes() == b'old'
+
+
+@pytest.mark.parametrize('policy', PUBLISHING)
+def test_publish_staged_file_warns_once_naming_staged_file(policy, tmp_path):
+    """publish_staged_file emits one DeprecationWarning, attributed to its caller, that points to StagedFile."""
+    with pytest.warns(DeprecationWarning) as record:
+        testee.publish_staged_file(make_stage(tmp_path), tmp_path / 'out.bin', None, policy)
+    assert len(record) == 1
+    assert str(record[0].message) == 'publish_staged_file is deprecated; use StagedFile instead'
+    assert record[0].filename == __file__
 
 
 def test_rename_flow_publishes_beside_existing_file(tmp_path, capsys):
@@ -304,8 +344,10 @@ def test_rename_flow_publishes_beside_existing_file(tmp_path, capsys):
     path.chmod(0o604)
     resolved = OverwritePolicy.RENAME.resolve(path)
     assert resolved is not None
-    target, mode = testee.resolve_publication_target(resolved, OverwritePolicy.RENAME)
-    published = testee.publish_staged_file(make_stage(tmp_path, mode=0o644), target, mode, OverwritePolicy.RENAME)
+    with deprecated():
+        target, mode = testee.resolve_publication_target(resolved, OverwritePolicy.RENAME)
+    with deprecated():
+        published = testee.publish_staged_file(make_stage(tmp_path, mode=0o644), target, mode, OverwritePolicy.RENAME)
     assert published is not None
     assert published == tmp_path / 'movie.1.mp4'
     assert published.read_bytes() == b'new'
@@ -322,10 +364,12 @@ def test_rename_flow_numbers_from_resolved_name_when_it_is_taken_meanwhile(tmp_p
     resolved = OverwritePolicy.RENAME.resolve(path)
     assert resolved is not None
     assert resolved == tmp_path / 'movie.1.mp4'
-    target, mode = testee.resolve_publication_target(resolved, OverwritePolicy.RENAME)
+    with deprecated():
+        target, mode = testee.resolve_publication_target(resolved, OverwritePolicy.RENAME)
     target.write_bytes(b'competitor')
     capsys.readouterr()
-    published = testee.publish_staged_file(make_stage(tmp_path), target, mode, OverwritePolicy.RENAME)
+    with deprecated():
+        published = testee.publish_staged_file(make_stage(tmp_path), target, mode, OverwritePolicy.RENAME)
     assert published is not None
     assert published == tmp_path / 'movie.1.1.mp4'
     assert published.read_bytes() == b'new'
@@ -342,7 +386,9 @@ def test_never_flow_writes_only_when_no_file_exists(existing, expected, tmp_path
         path.write_bytes(b'old')
     resolved = OverwritePolicy.NEVER.resolve(path)
     if resolved is not None:
-        target, mode = testee.resolve_publication_target(resolved, OverwritePolicy.NEVER)
-        assert testee.publish_staged_file(make_stage(tmp_path), target, mode, OverwritePolicy.NEVER) == path
+        with deprecated():
+            target, mode = testee.resolve_publication_target(resolved, OverwritePolicy.NEVER)
+        with deprecated():
+            assert testee.publish_staged_file(make_stage(tmp_path), target, mode, OverwritePolicy.NEVER) == path
     assert (resolved is None) == existing
     assert path.read_bytes() == expected

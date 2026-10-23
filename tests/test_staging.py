@@ -124,6 +124,23 @@ def test_staged_file_always_replaces_existing_file_keeping_its_mode(tmp_path):
     assert entries(tmp_path) == ['hello.mp4']
 
 
+def test_staged_file_always_replaces_target_inode_leaving_hardlink_alias_old(tmp_path):
+    """ALWAYS swaps in a new inode instead of writing the old one in place, so a hard-linked alias keeps the old bytes."""
+    target = tmp_path / 'hello.mp4'
+    target.write_bytes(b'old')
+    alias = tmp_path / 'alias.mp4'
+    os.link(target, alias)
+    old_inode = target.stat().st_ino
+    with testee.StagedFile(target, OverwritePolicy.ALWAYS) as staged:
+        staged.path.write_bytes(b'new')
+    assert staged.published == target
+    assert target.read_bytes() == b'new'
+    assert target.stat().st_ino != old_inode
+    assert alias.read_bytes() == b'old'
+    assert alias.stat().st_ino == old_inode
+    assert entries(tmp_path) == ['alias.mp4', 'hello.mp4']
+
+
 def test_staged_file_always_through_symlink_replaces_real_file_and_keeps_link(tmp_path):
     """A symlinked destination is resolved: the real file is replaced and the link kept."""
     real_dir = tmp_path / 'real'
@@ -149,6 +166,24 @@ def test_staged_file_never_keeps_file_that_appeared_meanwhile(tmp_path):
         target.write_bytes(b'competitor')
     assert staged.published is None
     assert target.read_bytes() == b'competitor'
+    assert entries(tmp_path) == ['hello.mp4']
+
+
+@pytest.mark.parametrize('competitor', ['directory', 'dangling-symlink'])
+def test_staged_file_never_raises_for_non_file_that_appeared_at_target(competitor, tmp_path):
+    """Under NEVER a directory or dangling symlink that appeared at the target is not a kept file: FileExistsError, untouched."""
+    target = tmp_path / 'hello.mp4'
+    with pytest.raises(FileExistsError), testee.StagedFile(target, OverwritePolicy.NEVER) as staged:
+        staged.path.write_bytes(b'new')
+        if competitor == 'directory':
+            target.mkdir()
+        else:
+            target.symlink_to('missing.mp4')
+    assert staged.published is None
+    if competitor == 'directory':
+        assert target.is_dir() and entries(target) == []
+    else:
+        assert target.is_symlink() and not (tmp_path / 'missing.mp4').exists()
     assert entries(tmp_path) == ['hello.mp4']
 
 
@@ -291,6 +326,20 @@ def test_staged_file_rejects_staged_entry_that_is_not_a_regular_file(policy, ent
     assert entries(tmp_path) == ['outside.mp4']
 
 
+def test_staged_file_mode_restoration_failure_publishes_nothing_and_cleans_up(mocker, tmp_path):
+    """Under ALWAYS, failing to give the staged file the target's mode propagates, leaves the target as it was and removes the stage."""
+    target = tmp_path / 'hello.mp4'
+    target.write_bytes(b'old')
+    target.chmod(0o640)
+    with pytest.raises(PermissionError, match='chmod failed'), testee.StagedFile(target, OverwritePolicy.ALWAYS) as staged:
+        staged.path.write_bytes(b'new')
+        mocker.patch.object(Path, 'chmod', side_effect=PermissionError('chmod failed'))
+    assert staged.published is None
+    assert target.read_bytes() == b'old'
+    assert target.stat().st_mode & 0o7777 == 0o640
+    assert entries(tmp_path) == ['hello.mp4']
+
+
 def test_staged_file_publication_failure_propagates_and_cleans_up(mocker, tmp_path):
     """A failed publication propagates, leaves the target absent and removes the stage."""
     target = tmp_path / 'hello.mp4'
@@ -308,6 +357,44 @@ def test_staged_file_rejects_directory_target_before_staging(tmp_path):
     with pytest.raises(NotAFileError), testee.StagedFile(target, OverwritePolicy.ALWAYS):
         pytest.fail('the body must not run')
     assert entries(tmp_path) == ['hello.mp4']
+
+
+@pytest.mark.skipif(os.name != 'posix' or os.geteuid() == 0, reason='POSIX permission bits are only enforced for non-root users')
+def test_staged_file_always_rejects_read_only_target_before_staging(tmp_path):
+    """ALWAYS raises PermissionError on entry for a read-only existing file, which is left as it was."""
+    target = tmp_path / 'hello.mp4'
+    target.write_bytes(b'old')
+    target.chmod(0o400)
+    with pytest.raises(PermissionError), testee.StagedFile(target, OverwritePolicy.ALWAYS):
+        pytest.fail('the body must not run')
+    assert target.read_bytes() == b'old'
+    assert target.stat().st_mode & 0o7777 == 0o400
+    assert entries(tmp_path) == ['hello.mp4']
+
+
+@pytest.mark.skipif(os.name != 'posix' or os.geteuid() == 0, reason='POSIX permission bits are only enforced for non-root users')
+@pytest.mark.parametrize('via_symlink', [False, True], ids=['direct', 'symlink'])
+@pytest.mark.parametrize('policy', list(OverwritePolicy))
+def test_staged_file_rejects_target_directory_that_cannot_hold_a_stage(policy, via_symlink, tmp_path):
+    """A writable target in a directory that cannot take new entries is rejected on entry with PermissionError naming that directory."""
+    directory = tmp_path / 'out'
+    directory.mkdir()
+    real = directory / 'hello.mp4'
+    real.write_bytes(b'old')
+    path = real
+    if via_symlink:
+        path = tmp_path / 'link.mp4'
+        path.symlink_to(real)
+    directory.chmod(0o500)
+    try:
+        with pytest.raises(PermissionError) as excinfo, testee.StagedFile(path, policy):
+            pytest.fail('the body must not run')
+    finally:
+        directory.chmod(0o700)
+    # The directory check names the directory; failing later, when creating the stage, would name the stage instead.
+    assert excinfo.value.args == (directory,)
+    assert real.read_bytes() == b'old'
+    assert entries(directory) == ['hello.mp4']
 
 
 def test_staged_file_creates_missing_parent_directories(tmp_path):
@@ -329,6 +416,20 @@ def test_staged_file_can_be_entered_only_once(tmp_path):
         pytest.fail('the body must not run')
     assert target.read_bytes() == b'new'
     assert entries(tmp_path) == ['hello.mp4']
+
+
+@pytest.mark.filterwarnings('error')
+@pytest.mark.parametrize('existing', [False, True])
+@pytest.mark.parametrize('policy', list(OverwritePolicy))
+def test_staged_file_emits_no_warning(policy, existing, tmp_path):
+    """StagedFile does not go through the deprecated publication functions, so it emits no warning."""
+    target = tmp_path / 'hello.mp4'
+    if existing:
+        target.write_bytes(b'old')
+    with testee.StagedFile(target, policy) as staged:
+        staged.path.write_bytes(b'new')
+    published = {OverwritePolicy.ALWAYS: target, OverwritePolicy.NEVER: None, OverwritePolicy.RENAME: tmp_path / 'hello.1.mp4'}
+    assert staged.published == (published[policy] if existing else target)
 
 
 def test_staged_file_is_exported_from_package():

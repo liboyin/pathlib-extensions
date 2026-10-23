@@ -1,10 +1,9 @@
-import os
-import stat
+"""Deprecated staged-publication functions; use `StagedFile` instead."""
+import warnings
 from pathlib import Path
 
-from pathlib_extensions.naming import get_numbered_path
 from pathlib_extensions.overwrite import OverwritePolicy
-from pathlib_extensions.prepare import prepare_output_dir, prepare_output_file
+from pathlib_extensions.staging import _publish_staged_file, _resolve_publication_target
 
 __all__ = ['publish_staged_file', 'resolve_publication_target']
 
@@ -12,6 +11,9 @@ __all__ = ['publish_staged_file', 'resolve_publication_target']
 def resolve_publication_target(path: Path, policy: OverwritePolicy = OverwritePolicy.ALWAYS) -> tuple[Path, int | None]:
     """
     Resolve a prepared destination through symlinks and capture its permission bits.
+
+    Deprecated: use `StagedFile`, which resolves the destination on entry. This emits a
+    DeprecationWarning, then behaves exactly as before.
 
     Call this before writing a stage, so that the stage can be created beside the real
     target and receive the target's existing mode when it is published. NEVER and RENAME
@@ -35,26 +37,16 @@ def resolve_publication_target(path: Path, policy: OverwritePolicy = OverwritePo
             ALWAYS, or its directory cannot accept the new entries that staging and
             publication need.
     """
-    target = path.resolve()
-    keeping = policy is not OverwritePolicy.ALWAYS
-    # A file that will be kept is only checked to be a file; its own write permission is irrelevant.
-    if not (keeping and target.is_file()):
-        prepare_output_file(target)
-    # The stage is created beside the target and then linked or renamed over it, so the directory
-    # must accept new entries even when an existing target is itself writable in place.
-    prepare_output_dir(target.parent, create=False)
-    if keeping:
-        return target, None
-    try:
-        mode: int | None = stat.S_IMODE(target.stat().st_mode)
-    except FileNotFoundError:
-        mode = None
-    return target, mode
+    warnings.warn('resolve_publication_target is deprecated; use StagedFile instead', DeprecationWarning, stacklevel=2)
+    return _resolve_publication_target(path, policy)
 
 
 def publish_staged_file(stage: Path, target: Path, mode: int | None, policy: OverwritePolicy) -> Path | None:
     """
     Publish a completed stage file to its resolved target.
+
+    Deprecated: use `StagedFile`, which publishes the staged file on a clean exit. This
+    emits a DeprecationWarning, then behaves exactly as before.
 
     The stage must be a completed regular file on the same filesystem as the target,
     normally a sibling created by the caller. Captured mode bits are applied to the stage
@@ -87,38 +79,5 @@ def publish_staged_file(stage: Path, target: Path, mode: int | None, policy: Ove
         OSError: If mode restoration, linking (including unsupported hard links) or
             replacement fails.
     """
-    if mode is not None:
-        stage.chmod(mode)
-    if policy is OverwritePolicy.ALWAYS:
-        stage.replace(target)
-        return target
-    if policy is OverwritePolicy.NEVER:
-        try:
-            os.link(stage, target)
-        except FileExistsError:
-            if not target.is_file():
-                raise
-            return None
-        return target
-    return _link_to_free_name(stage, target)
-
-
-def _link_to_free_name(stage: Path, target: Path) -> Path:
-    """
-    Hard-link `stage` at `target`, or at its first free numbered name, and return that path.
-
-    Any existing entry, whether a file, directory or dangling symlink, counts as taken and
-    is left untouched. Prints the new name when the target itself was taken.
-    """
-    candidate = target
-    number = 0
-    while True:
-        try:
-            os.link(stage, candidate)
-        except FileExistsError:
-            number += 1
-            candidate = get_numbered_path(target, number)
-        else:
-            if number:
-                print(f'Renamed path: {target} -> {candidate}')
-            return candidate
+    warnings.warn('publish_staged_file is deprecated; use StagedFile instead', DeprecationWarning, stacklevel=2)
+    return _publish_staged_file(stage, target, mode, policy)

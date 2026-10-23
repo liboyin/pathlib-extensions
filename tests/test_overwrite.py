@@ -1,4 +1,6 @@
+import importlib
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -7,70 +9,131 @@ import pathlib_extensions.overwrite as testee
 from pathlib_extensions.prepare import NotAFileError
 
 
+def deprecated(replacement: str = 'OverwritePolicy.resolve'):
+    """Expect a DeprecationWarning that names the replacement of a deprecated entry point."""
+    return pytest.warns(DeprecationWarning, match=replacement)
+
+
+def assert_single_deprecation(record: pytest.WarningsRecorder, replacement: str) -> None:
+    """Check that exactly one warning was emitted, a DeprecationWarning naming `replacement` and attributed to the caller."""
+    assert len(record) == 1
+    assert record[0].category is DeprecationWarning
+    assert replacement in str(record[0].message)
+    assert record[0].filename == __file__
+
+
 def test_overwrite_mode():
-    assert testee.OverwriteMode.values() == ('always', 'never', 'prompt', 'rename')
+    with deprecated('OverwritePolicy'):
+        assert testee.OverwriteMode.values() == ('always', 'never', 'prompt', 'rename')
+
+
+def test_overwrite_mode_values_warns_once_naming_overwrite_policy():
+    """OverwriteMode.values() emits one DeprecationWarning that points to OverwritePolicy."""
+    with pytest.warns(DeprecationWarning) as record:
+        testee.OverwriteMode.values()
+    assert_single_deprecation(record, 'OverwritePolicy')
+
+
+@pytest.mark.filterwarnings('error')
+def test_overwrite_mode_members_and_fresh_package_import_do_not_warn(monkeypatch):
+    """A fresh import of the package, whose star imports read every export, and OverwriteMode's members emit no warning."""
+    for name in [name for name in sys.modules if name.partition('.')[0] == 'pathlib_extensions']:
+        monkeypatch.delitem(sys.modules, name)
+    fresh = importlib.import_module('pathlib_extensions')
+    assert fresh.OverwriteMode is not testee.OverwriteMode
+    assert fresh.OverwriteMode('never') is fresh.OverwriteMode.NEVER
+    assert [mode.value for mode in fresh.OverwriteMode] == ['always', 'never', 'prompt', 'rename']
 
 
 @pytest.mark.parametrize('user_input', ['y', 'Y'])
 def test_user_confirms_overwrite_positive(mocker, user_input):
     mock_input = mocker.patch('builtins.input', return_value=user_input)
-    assert testee.user_confirms_overwrite(Path("/dummy/file.path"))
+    with deprecated():
+        assert testee.user_confirms_overwrite(Path("/dummy/file.path"))
     mock_input.assert_called_once()
 
 
 @pytest.mark.parametrize('user_input', ['n', 'N', ''])
 def test_user_confirms_overwrite_negative(mocker, user_input):
     mock_input = mocker.patch('builtins.input', return_value=user_input)
-    assert not testee.user_confirms_overwrite(Path("/dummy/file.path"))
+    with deprecated():
+        assert not testee.user_confirms_overwrite(Path("/dummy/file.path"))
     mock_input.assert_called_once()
+
+
+def test_user_confirms_overwrite_warns_once_naming_overwrite_policy(mocker):
+    """user_confirms_overwrite emits one DeprecationWarning that points to OverwritePolicy.resolve."""
+    mocker.patch('builtins.input', return_value='y')
+    with pytest.warns(DeprecationWarning) as record:
+        testee.user_confirms_overwrite(Path("/dummy/file.path"))
+    assert_single_deprecation(record, 'OverwritePolicy.resolve')
 
 
 def test_overwrite_existing_path_path_does_not_exist(mocker):
     mocker.patch.object(Path, 'exists', return_value=False)
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError), deprecated():
         testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.ALWAYS)
 
 
 def test_overwrite_existing_path_always(mocker):
     mocker.patch.object(Path, 'exists', return_value=True)
-    assert testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.ALWAYS)
+    with deprecated():
+        assert testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.ALWAYS)
 
 
 def test_overwrite_existing_path_never(mocker):
     mocker.patch.object(Path, 'exists', return_value=True)
-    assert not testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.NEVER)
+    with deprecated():
+        assert not testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.NEVER)
 
 
 def test_overwrite_existing_path_prompt_positive(mocker):
     mocker.patch.object(Path, 'exists', return_value=True)
-    mocker.patch.object(testee, 'user_confirms_overwrite', return_value=True)
-    assert testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.PROMPT)
+    mocker.patch.object(testee, '_user_confirms_overwrite', return_value=True)
+    with deprecated():
+        assert testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.PROMPT)
 
 
 def test_overwrite_existing_path_prompt_negative(mocker):
     mocker.patch.object(Path, 'exists', return_value=True)
-    mocker.patch.object(testee, 'user_confirms_overwrite', return_value=False)
-    assert not testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.PROMPT)
+    mocker.patch.object(testee, '_user_confirms_overwrite', return_value=False)
+    with deprecated():
+        assert not testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.PROMPT)
 
 
 def test_overwrite_existing_path_rename(mocker):
     mocker.patch.object(Path, 'exists', return_value=True)
-    assert not testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.RENAME)
+    with deprecated():
+        assert not testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.RENAME)
+
+
+@pytest.mark.parametrize('user_input', ['y', 'n'])
+def test_overwrite_existing_path_prompt_warns_once_naming_overwrite_policy(user_input, mocker, tmp_path):
+    """A prompting overwrite_existing_path call emits one DeprecationWarning, not a second one for its prompt."""
+    path = tmp_path / 'out.bin'
+    path.write_bytes(b'old')
+    mock_input = mocker.patch('builtins.input', return_value=user_input)
+    with pytest.warns(DeprecationWarning) as record:
+        assert testee.overwrite_existing_path(path, testee.OverwriteMode.PROMPT) == (user_input == 'y')
+    mock_input.assert_called_once()
+    assert_single_deprecation(record, 'OverwritePolicy.resolve')
 
 
 @pytest.mark.parametrize('mode', list(testee.OverwriteMode))
 def test_resolve_overwrite_mode_absent_file_keeps_mode_without_prompt(mode, mocker, tmp_path):
     """A missing destination keeps the requested mode and never prompts."""
-    prompt = mocker.patch.object(testee, 'user_confirms_overwrite')
-    assert testee.resolve_overwrite_mode(tmp_path / 'missing.bin', mode) is mode
+    prompt = mocker.patch.object(testee, '_user_confirms_overwrite')
+    with deprecated():
+        assert testee.resolve_overwrite_mode(tmp_path / 'missing.bin', mode) is mode
     prompt.assert_not_called()
 
 
 @pytest.mark.parametrize('mode', list(testee.OverwriteMode))
 def test_resolve_overwrite_mode_directory_is_left_to_the_writer(mode, mocker, tmp_path):
     """A directory is not an existing file: the mode is returned unchanged without a prompt."""
-    prompt = mocker.patch.object(testee, 'user_confirms_overwrite')
-    assert testee.resolve_overwrite_mode(tmp_path, mode) is mode
+    prompt = mocker.patch.object(testee, '_user_confirms_overwrite')
+    with deprecated():
+        assert testee.resolve_overwrite_mode(tmp_path, mode) is mode
     prompt.assert_not_called()
 
 
@@ -79,14 +142,16 @@ def test_resolve_overwrite_mode_keeps_existing_file_under_preserving_modes(mode,
     """NEVER and RENAME decline to write over an existing file."""
     path = tmp_path / 'out.bin'
     path.write_bytes(b'old')
-    assert testee.resolve_overwrite_mode(path, mode) is None
+    with deprecated():
+        assert testee.resolve_overwrite_mode(path, mode) is None
 
 
 def test_resolve_overwrite_mode_always_overwrites_existing_file(tmp_path):
     """ALWAYS approves writing over an existing file."""
     path = tmp_path / 'out.bin'
     path.write_bytes(b'old')
-    assert testee.resolve_overwrite_mode(path, testee.OverwriteMode.ALWAYS) is testee.OverwriteMode.ALWAYS
+    with deprecated():
+        assert testee.resolve_overwrite_mode(path, testee.OverwriteMode.ALWAYS) is testee.OverwriteMode.ALWAYS
 
 
 @pytest.mark.parametrize(('consent', 'expected'), [(True, testee.OverwriteMode.ALWAYS), (False, None)])
@@ -94,8 +159,9 @@ def test_resolve_overwrite_mode_prompt_asks_once_and_carries_the_answer(consent,
     """PROMPT asks about an existing file once; approval becomes ALWAYS, refusal keeps it."""
     path = tmp_path / 'out.bin'
     path.write_bytes(b'old')
-    prompt = mocker.patch.object(testee, 'user_confirms_overwrite', return_value=consent)
-    assert testee.resolve_overwrite_mode(path, testee.OverwriteMode.PROMPT) is expected
+    prompt = mocker.patch.object(testee, '_user_confirms_overwrite', return_value=consent)
+    with deprecated():
+        assert testee.resolve_overwrite_mode(path, testee.OverwriteMode.PROMPT) is expected
     prompt.assert_called_once_with(path)
 
 
@@ -105,7 +171,20 @@ def test_resolve_overwrite_mode_checks_file_behind_symlink(tmp_path):
     real.write_bytes(b'old')
     link = tmp_path / 'link.bin'
     link.symlink_to(real.name)
-    assert testee.resolve_overwrite_mode(link, testee.OverwriteMode.NEVER) is None
+    with deprecated():
+        assert testee.resolve_overwrite_mode(link, testee.OverwriteMode.NEVER) is None
+
+
+@pytest.mark.parametrize('user_input', ['y', 'n'])
+def test_resolve_overwrite_mode_prompt_warns_once_naming_overwrite_policy(user_input, mocker, tmp_path):
+    """A prompting resolve_overwrite_mode call emits one DeprecationWarning, not more for the helpers it uses."""
+    path = tmp_path / 'out.bin'
+    path.write_bytes(b'old')
+    mock_input = mocker.patch('builtins.input', return_value=user_input)
+    with pytest.warns(DeprecationWarning) as record:
+        testee.resolve_overwrite_mode(path, testee.OverwriteMode.PROMPT)
+    mock_input.assert_called_once()
+    assert_single_deprecation(record, 'OverwritePolicy.resolve')
 
 
 def test_overwrite_policy_values_are_the_choices_in_declaration_order():
@@ -118,7 +197,8 @@ def test_overwrite_policy_is_exported_alongside_overwrite_mode():
     import pathlib_extensions
     assert pathlib_extensions.OverwritePolicy is testee.OverwritePolicy
     assert testee.OverwritePolicy is not testee.OverwriteMode
-    assert testee.OverwriteMode.values() == ('always', 'never', 'prompt', 'rename')
+    with deprecated('OverwritePolicy'):
+        assert testee.OverwriteMode.values() == ('always', 'never', 'prompt', 'rename')
 
 
 @pytest.mark.parametrize('policy', list(testee.OverwritePolicy))
@@ -252,3 +332,15 @@ def test_overwrite_policy_resolve_ignores_rename_limits_for_other_policies(polic
     """max_length and max_attempts only matter under RENAME."""
     path = tmp_path / 'hello.mp4'
     assert policy.resolve(path, max_length=1, max_attempts=1) == path
+
+
+@pytest.mark.filterwarnings('error')
+@pytest.mark.parametrize('existing', [False, True])
+@pytest.mark.parametrize('policy', list(testee.OverwritePolicy))
+def test_overwrite_policy_values_and_resolve_emit_no_warning(policy, existing, tmp_path):
+    """OverwritePolicy, unlike the deprecated OverwriteMode helpers, emits no warning."""
+    path = tmp_path / 'hello.mp4'
+    if existing:
+        path.write_bytes(b'old')
+    assert testee.OverwritePolicy.values() == ('always', 'never', 'rename')
+    policy.resolve(path)
