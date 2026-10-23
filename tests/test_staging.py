@@ -14,6 +14,23 @@ def entries(directory: Path) -> list[str]:
     return sorted(p.name for p in directory.iterdir())
 
 
+@pytest.mark.parametrize('name', ['', '.', '..', 'a/b', '/video.mp4', 'video/', 'video\0.mp4'])
+def test_staged_file_rejects_name_that_is_not_one_path_component(name, tmp_path):
+    """An empty, `.` or `..` name, or one with a separator or NUL, raises ValueError before anything is created."""
+    target = tmp_path / 'out' / 'hello.mp4'
+    with pytest.raises(ValueError, match='single path component'):
+        testee.StagedFile(target, OverwritePolicy.ALWAYS, name=name)
+    assert entries(tmp_path) == []
+
+
+def test_staged_file_rejects_name_containing_alternative_separator(monkeypatch, tmp_path):
+    """Where the platform has an alternative separator, a name containing it is rejected too."""
+    monkeypatch.setattr(testee.os, 'altsep', '\\')
+    with pytest.raises(ValueError, match='single path component'):
+        testee.StagedFile(tmp_path / 'hello.mp4', OverwritePolicy.ALWAYS, name='a\\b')
+    assert entries(tmp_path) == []
+
+
 def test_staged_file_stages_a_fresh_path_named_like_the_target_beside_it(tmp_path):
     """The body gets a not-yet-existing path named like the target, in a hidden directory beside it."""
     target = tmp_path / 'hello.en.srt'
@@ -25,6 +42,59 @@ def test_staged_file_stages_a_fresh_path_named_like_the_target_beside_it(tmp_pat
         assert not staged.path.exists()
         staged.path.write_text('new')
     assert target.read_text() == 'new'
+
+
+@pytest.mark.parametrize('policy', list(OverwritePolicy))
+def test_staged_file_with_name_stages_under_that_name_and_publishes_to_target(policy, tmp_path, capsys):
+    """A named stage file sits in the stage directory under that name, is published to the target and leaves no stage behind."""
+    target = tmp_path / 'Title [abc].mp4'
+    unrelated = tmp_path / 'video.mp4'
+    unrelated.write_bytes(b'unrelated')
+    with testee.StagedFile(target, policy, name='video.mp4') as staged:
+        assert staged.target == target
+        assert staged.path.name == 'video.mp4'
+        assert staged.path.parent.parent == tmp_path
+        assert staged.path.parent.name.startswith('.staging-')
+        assert not staged.path.exists()
+        staged.path.write_bytes(b'new')
+        (staged.path.parent / 'video.mp4.part').write_bytes(b'tool temp file')
+    assert staged.published == target
+    assert target.read_bytes() == b'new'
+    assert unrelated.read_bytes() == b'unrelated'
+    assert entries(tmp_path) == ['Title [abc].mp4', 'video.mp4']
+    assert capsys.readouterr().out == ''
+
+
+def test_staged_file_with_name_always_replaces_symlinked_file_with_another_suffix(tmp_path):
+    """A name taken from a symlink whose target has another suffix still replaces the real file, keeping its mode and the link."""
+    real_dir = tmp_path / 'real'
+    real_dir.mkdir()
+    real = real_dir / 'audio.data'
+    real.write_bytes(b'old')
+    real.chmod(0o640)
+    link = tmp_path / 'audio.wav'
+    link.symlink_to(real)
+    with testee.StagedFile(link, OverwritePolicy.ALWAYS, name=link.name) as staged:
+        assert staged.target == real
+        assert staged.path.name == 'audio.wav'
+        assert staged.path.parent.parent == real_dir
+        staged.path.write_bytes(b'new')
+        assert real.read_bytes() == b'old'
+    assert staged.published == real
+    assert link.is_symlink() and link.read_bytes() == b'new'
+    assert real.stat().st_mode & 0o7777 == 0o640
+    assert entries(real_dir) == ['audio.data']
+
+
+def test_staged_file_with_name_never_keeps_file_that_appeared_at_target(tmp_path):
+    """Under NEVER a named stage still checks the target, not its own name, and keeps a file that appeared there."""
+    target = tmp_path / 'hello.mp4'
+    with testee.StagedFile(target, OverwritePolicy.NEVER, name='video.mp4') as staged:
+        staged.path.write_bytes(b'new')
+        target.write_bytes(b'competitor')
+    assert staged.published is None
+    assert target.read_bytes() == b'competitor'
+    assert entries(tmp_path) == ['hello.mp4']
 
 
 @pytest.mark.parametrize('policy', list(OverwritePolicy))

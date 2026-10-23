@@ -1,3 +1,4 @@
+import os
 import shutil
 import stat
 import tempfile
@@ -21,8 +22,10 @@ class StagedFile:
 
     On entry the destination is resolved and prepared with `resolve_publication_target`, and
     a private hidden directory is created beside the resolved target. The body writes the
-    file at `path`, which is named like the target inside that directory and does not exist
-    yet, so external tools can write to it by path and keep their own temporary files there.
+    file at `path`, which is inside that directory and does not exist yet, so external tools
+    can write to it by path and keep their own temporary files there. The file is named like
+    the target unless `name` chooses another name, for tools that pick a format from the file
+    name or expand templates in it.
     On a clean exit the file must be a regular file; it is then published with
     `publish_staged_file` under `policy`, and the result is stored in `published`. If the
     body raises, nothing is published and the target is left untouched. The stage directory
@@ -42,7 +45,8 @@ class StagedFile:
     Attributes:
         policy (OverwritePolicy): How the file is published.
         target (Path): The resolved destination, set on entry.
-        path (Path): Where the body writes the file, set on entry.
+        path (Path): Where the body writes the file, set on entry: inside the stage
+            directory, named `name` if given and like the target otherwise.
         published (Path | None): Where the file was published, set on a clean exit: the
             target, or under RENAME a numbered name beside it; None under NEVER when a file
             appeared at the target meanwhile and was kept, and before publication.
@@ -51,17 +55,29 @@ class StagedFile:
     target: Path
     path: Path
 
-    def __init__(self, path: Path, policy: OverwritePolicy) -> None:
+    def __init__(self, path: Path, policy: OverwritePolicy, *, name: str | None = None) -> None:
         """
-        Remember the destination and policy; nothing is touched until entry.
+        Remember the destination, policy and stage file name; nothing is touched until entry.
 
         Args:
             path (Path): Destination, normally returned by `OverwritePolicy.resolve`.
             policy (OverwritePolicy): How the file is published.
+            name (str | None, optional): Name of the file at `path` inside the stage directory.
+                It affects only staging: the file is still published to the target. Defaults
+                to None, which names it like the target.
+
+        Raises:
+            ValueError: If `name` is not a single plain path component: empty, `.` or `..`,
+                or containing a path separator or NUL.
         """
+        if name is not None:
+            separators = [sep for sep in (os.sep, os.altsep) if sep]
+            if name in ('', '.', '..') or '\0' in name or any(sep in name for sep in separators):
+                raise ValueError(f'A stage file name must be a single path component: {name!r}')
         self.policy = policy
         self.published: Path | None = None
         self._destination = path
+        self._name = name
         self._mode: int | None = None
         self._stage_dir: Path | None = None
         self._entered = False
@@ -84,7 +100,7 @@ class StagedFile:
         self._entered = True
         self.target, self._mode = resolve_publication_target(self._destination, self.policy)
         self._stage_dir = Path(tempfile.mkdtemp(prefix='.staging-', dir=self.target.parent))
-        self.path = self._stage_dir / self.target.name
+        self.path = self._stage_dir / (self.target.name if self._name is None else self._name)
         return self
 
     def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: TracebackType | None) -> None:
