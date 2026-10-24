@@ -1,4 +1,5 @@
 import errno
+import logging
 import os
 from pathlib import Path
 
@@ -201,13 +202,13 @@ def test_publish_staged_file_mode_failure_publishes_nothing(policy, existing, mo
 
 
 @pytest.mark.parametrize('policy', KEEPING)
-def test_publish_staged_file_links_absent_target(policy, tmp_path, capsys):
+def test_publish_staged_file_links_absent_target(policy, tmp_path, package_logs):
     """NEVER and RENAME publish to an absent target by hard link, under its own name."""
     target = tmp_path / 'out.bin'
     stage = make_stage(tmp_path)
     with deprecated():
         assert testee.publish_staged_file(stage, target, None, policy) == target
-    assert capsys.readouterr().out == ''
+    assert package_logs.record_tuples == []
     assert target.read_bytes() == b'new'
     assert os.path.samefile(stage, target)
 
@@ -263,7 +264,7 @@ def test_publish_staged_file_replacement_failure_preserves_previous_file(mocker,
     assert target.read_bytes() == b'old'
 
 
-def test_publish_staged_file_rename_publishes_beside_existing_file(tmp_path, capsys):
+def test_publish_staged_file_rename_publishes_beside_existing_file(tmp_path, package_logs):
     """RENAME keeps an existing target and publishes the stage at the first numbered name."""
     target = tmp_path / 'hello.mp4'
     target.write_bytes(b'old')
@@ -275,7 +276,7 @@ def test_publish_staged_file_rename_publishes_beside_existing_file(tmp_path, cap
     assert published.read_bytes() == b'new'
     assert os.path.samefile(stage, published)
     assert target.read_bytes() == b'old'
-    assert capsys.readouterr().out == f'Renamed path: {target} -> {published}\n'
+    assert package_logs.record_tuples == [('pathlib_extensions.staging', logging.INFO, f'Renamed path: {target} -> {published}')]
 
 
 def test_publish_staged_file_rename_skips_every_taken_name_untouched(tmp_path):
@@ -337,7 +338,7 @@ def test_publish_staged_file_warns_once_naming_staged_file(policy, tmp_path):
     assert record[0].filename == __file__
 
 
-def test_rename_flow_publishes_beside_existing_file(tmp_path, capsys):
+def test_rename_flow_publishes_beside_existing_file(tmp_path, package_logs):
     """Resolving, preparing and publishing under RENAME writes a numbered file and keeps the original."""
     path = tmp_path / 'movie.mp4'
     path.write_bytes(b'old')
@@ -354,10 +355,10 @@ def test_rename_flow_publishes_beside_existing_file(tmp_path, capsys):
     assert published.stat().st_mode & 0o7777 == 0o644
     assert path.read_bytes() == b'old'
     assert path.stat().st_mode & 0o7777 == 0o604
-    assert capsys.readouterr().out == f'Not overwriting path: {path}, writing to: {published}\n'
+    assert package_logs.record_tuples == [('pathlib_extensions.overwrite', logging.INFO, f'Not overwriting path: {path}, writing to: {published}')]
 
 
-def test_rename_flow_numbers_from_resolved_name_when_it_is_taken_meanwhile(tmp_path, capsys):
+def test_rename_flow_numbers_from_resolved_name_when_it_is_taken_meanwhile(tmp_path, package_logs):
     """If the resolved name is taken before publication, RENAME numbers from that name and keeps both files."""
     path = tmp_path / 'movie.mp4'
     path.write_bytes(b'old')
@@ -367,7 +368,7 @@ def test_rename_flow_numbers_from_resolved_name_when_it_is_taken_meanwhile(tmp_p
     with deprecated():
         target, mode = testee.resolve_publication_target(resolved, OverwritePolicy.RENAME)
     target.write_bytes(b'competitor')
-    capsys.readouterr()
+    package_logs.clear()
     with deprecated():
         published = testee.publish_staged_file(make_stage(tmp_path), target, mode, OverwritePolicy.RENAME)
     assert published is not None
@@ -375,7 +376,7 @@ def test_rename_flow_numbers_from_resolved_name_when_it_is_taken_meanwhile(tmp_p
     assert published.read_bytes() == b'new'
     assert target.read_bytes() == b'competitor'
     assert path.read_bytes() == b'old'
-    assert capsys.readouterr().out == f'Renamed path: {target} -> {published}\n'
+    assert package_logs.record_tuples == [('pathlib_extensions.staging', logging.INFO, f'Renamed path: {target} -> {published}')]
 
 
 @pytest.mark.parametrize(('existing', 'expected'), [(False, b'new'), (True, b'old')])

@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -205,10 +206,10 @@ def test_truncate_filename_rejects_dot_or_dot_dot_result(name, max_length):
     ('.bashrc', 1, '.bashrc.1'),
     ('My talk. Part 2.mp4', 1, 'My talk. Part 2.1.mp4'),
 ])
-def test_get_numbered_path_inserts_number_before_extension_like_suffixes(name, number, expected, capsys):
+def test_get_numbered_path_inserts_number_before_extension_like_suffixes(name, number, expected, package_logs):
     """The number goes before the whole trailing run of extension-like suffixes, silently."""
     assert testee.get_numbered_path(Path('d') / name, number) == Path('d') / expected
-    assert capsys.readouterr().out == ''
+    assert package_logs.record_tuples == []
 
 
 def test_get_numbered_path_accepts_str_and_keeps_directory_components():
@@ -216,14 +217,14 @@ def test_get_numbered_path_accepts_str_and_keeps_directory_components():
     assert testee.get_numbered_path('dir.d/sub.v2/hello.mp4', 1) == Path('dir.d/sub.v2/hello.1.mp4')
 
 
-def test_get_numbered_path_shortens_stem_of_a_maximal_name(capsys):
+def test_get_numbered_path_shortens_stem_of_a_maximal_name(package_logs):
     """A numbered name over the limit loses trailing stem text at a character boundary but keeps the number."""
     path = Path('d') / ('é' * 125 + 'x.mp4')
     assert len(path.name.encode('utf-8')) == 255
     result = testee.get_numbered_path(path, 1)
     assert result == Path('d') / ('é' * 124 + '.1.mp4')
     assert len(result.name.encode('utf-8')) == 254
-    assert 'Truncated path' in capsys.readouterr().out
+    assert package_logs.record_tuples == [(testee.__name__, logging.INFO, f'Truncated path: {path.with_name("é" * 125 + "x.1.mp4")} -> {result}')]
 
 
 def test_get_numbered_path_honours_custom_max_length():
@@ -336,10 +337,10 @@ def test_get_first_available_path_is_exported_from_package():
     assert 'get_first_available_path' in testee.__all__
 
 
-def test_build_filename_replaces_reserved_characters_without_truncating(capsys):
-    """A short name keeps all text with reserved characters replaced, and prints nothing."""
+def test_build_filename_replaces_reserved_characters_without_truncating(package_logs):
+    """A short name keeps all text with reserved characters replaced, and logs nothing."""
     assert testee.build_filename('a/b: c?', '.mp4', tag=' [id1]') == 'a_b_ c_ [id1].mp4'
-    assert capsys.readouterr().out == ''
+    assert package_logs.record_tuples == []
 
 
 def test_build_filename_uses_custom_replacement_for_reserved_characters():
@@ -352,13 +353,13 @@ def test_build_filename_keeps_name_at_exact_limit():
     assert testee.build_filename('a' * 10, '.mp4', tag=' [x]', max_length=18) == 'a' * 10 + ' [x].mp4'
 
 
-def test_build_filename_truncates_only_text_and_keeps_tag_and_suffix(capsys):
+def test_build_filename_truncates_only_text_and_keeps_tag_and_suffix(package_logs):
     """A long title is cut so the tag and suffix survive within the byte limit."""
     title = 'Mr. Smith Goes to Washington ' + 'x' * 300
     name = testee.build_filename(title, '.mp4', tag=' [n9xhJrPXop4]', max_length=220)
     assert name == title[:220 - 18] + ' [n9xhJrPXop4].mp4'
     assert len(name.encode('utf-8')) == 220
-    assert 'Truncated filename:' in capsys.readouterr().out
+    assert package_logs.record_tuples == [(testee.__name__, logging.INFO, f'Truncated filename: {title} [n9xhJrPXop4].mp4 -> {name}')]
 
 
 def test_build_filename_infers_no_suffix_from_dots_in_text():

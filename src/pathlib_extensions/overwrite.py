@@ -1,3 +1,4 @@
+import logging
 import stat
 import warnings
 from enum import Enum
@@ -7,6 +8,8 @@ from pathlib_extensions.naming import get_first_available_path
 from pathlib_extensions.prepare import NotAFileError
 
 __all__ = ['OverwriteMode', 'OverwritePolicy', 'overwrite_existing_path', 'resolve_overwrite_mode', 'user_confirms_overwrite']
+
+logger = logging.getLogger(__name__)
 
 
 class OverwriteMode(str, Enum):
@@ -86,20 +89,20 @@ def _overwrite_existing_path(path: Path, overwrite_mode: OverwriteMode) -> bool:
     """
     if not path.exists():
         raise FileNotFoundError(path)
-    overwrite_message = f'Overwriting path: {path}'
-    not_overwrite_message = f'Not overwriting path: {path}'
+    overwrite_message = 'Overwriting path: %s'
+    not_overwrite_message = 'Not overwriting path: %s'
     match overwrite_mode:
         case OverwriteMode.ALWAYS:
-            print(overwrite_message)
+            logger.info(overwrite_message, path)
             return True
         case OverwriteMode.NEVER:
-            print(not_overwrite_message)
+            logger.info(not_overwrite_message, path)
             return False
         case OverwriteMode.PROMPT:
             if not _user_confirms_overwrite(path):
-                print(not_overwrite_message)
+                logger.info(not_overwrite_message, path)
                 return False
-            print(overwrite_message)
+            logger.info(overwrite_message, path)
             return True
         case OverwriteMode.RENAME:
             return False
@@ -167,8 +170,7 @@ class OverwritePolicy(str, Enum):
         directory, raises before work is wasted on an output that cannot be written. RENAME
         returns `get_first_available_path(path, max_length, max_attempts)`: `path` itself when
         nothing at all exists there, otherwise its lowest free numbered variant, such as
-        `hello.1.mp4`; any entry counts as taken. A message is printed whenever an existing
-        entry changes or confirms the answer.
+        `hello.1.mp4`; any entry counts as taken.
 
         The answer is only a snapshot. Under NEVER and RENAME the writer should still create
         the file exclusively, in case a file appears at the returned path meanwhile.
@@ -194,7 +196,7 @@ class OverwritePolicy(str, Enum):
         if self is OverwritePolicy.RENAME:
             available = get_first_available_path(path, max_length, max_attempts)
             if available != path:
-                print(f'Not overwriting path: {path}, writing to: {available}')
+                logger.info('Not overwriting path: %s, writing to: %s', path, available)
             return available
         try:
             mode = path.stat().st_mode
@@ -203,7 +205,7 @@ class OverwritePolicy(str, Enum):
         if not stat.S_ISREG(mode):
             raise NotAFileError(path)
         if self is OverwritePolicy.ALWAYS:
-            print(f'Overwriting path: {path}')
+            logger.info('Overwriting path: %s', path)
             return path
-        print(f'Not overwriting path: {path}')
+        logger.info('Not overwriting path: %s', path)
         return None

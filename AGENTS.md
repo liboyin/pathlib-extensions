@@ -21,7 +21,7 @@ Link to the owning document instead of duplicating it. Skills implement these st
 
 This is a small, dependency-free library. Its public API is what each module exports in `__all__`, re-exported from [`pathlib_extensions`](src/pathlib_extensions/__init__.py).
 
-- Changes to exported names, signatures, return values, raised exceptions, path semantics, filesystem side effects or printed messages are user-visible; confirm breaking changes with the user before implementing them.
+- Changes to exported names, signatures, return values, raised exceptions, path semantics, filesystem side effects or logged messages are user-visible; confirm breaking changes with the user before implementing them.
 - Library code MUST run on every Python version in `requires-python` and the CI matrix; do not use newer syntax or standard-library features without confirming a support change.
 - Do not add runtime dependencies without user confirmation.
 - Filesystem behavior is not portable by assumption: verify assumptions about Python versions, platforms or filesystems empirically or against version-appropriate documentation.

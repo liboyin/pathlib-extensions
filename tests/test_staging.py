@@ -1,4 +1,5 @@
 import errno
+import logging
 import os
 from pathlib import Path
 
@@ -45,7 +46,7 @@ def test_staged_file_stages_a_fresh_path_named_like_the_target_beside_it(tmp_pat
 
 
 @pytest.mark.parametrize('policy', list(OverwritePolicy))
-def test_staged_file_with_name_stages_under_that_name_and_publishes_to_target(policy, tmp_path, capsys):
+def test_staged_file_with_name_stages_under_that_name_and_publishes_to_target(policy, tmp_path, package_logs):
     """A named stage file sits in the stage directory under that name, is published to the target and leaves no stage behind."""
     target = tmp_path / 'Title [abc].mp4'
     unrelated = tmp_path / 'video.mp4'
@@ -62,7 +63,7 @@ def test_staged_file_with_name_stages_under_that_name_and_publishes_to_target(po
     assert target.read_bytes() == b'new'
     assert unrelated.read_bytes() == b'unrelated'
     assert entries(tmp_path) == ['Title [abc].mp4', 'video.mp4']
-    assert capsys.readouterr().out == ''
+    assert package_logs.record_tuples == []
 
 
 def test_staged_file_with_name_always_replaces_symlinked_file_with_another_suffix(tmp_path):
@@ -98,7 +99,7 @@ def test_staged_file_with_name_never_keeps_file_that_appeared_at_target(tmp_path
 
 
 @pytest.mark.parametrize('policy', list(OverwritePolicy))
-def test_staged_file_publishes_to_absent_target_and_cleans_up(policy, tmp_path, capsys):
+def test_staged_file_publishes_to_absent_target_and_cleans_up(policy, tmp_path, package_logs):
     """Every policy publishes to a free target and leaves no stage behind."""
     target = tmp_path / 'hello.mp4'
     with testee.StagedFile(target, policy) as staged:
@@ -107,7 +108,7 @@ def test_staged_file_publishes_to_absent_target_and_cleans_up(policy, tmp_path, 
     assert staged.published == target
     assert target.read_bytes() == b'new'
     assert entries(tmp_path) == ['hello.mp4']
-    assert capsys.readouterr().out == ''
+    assert package_logs.record_tuples == []
 
 
 def test_staged_file_always_replaces_existing_file_keeping_its_mode(tmp_path):
@@ -187,7 +188,7 @@ def test_staged_file_never_raises_for_non_file_that_appeared_at_target(competito
     assert entries(tmp_path) == ['hello.mp4']
 
 
-def test_staged_file_rename_publishes_beside_file_that_appeared_meanwhile(tmp_path, capsys):
+def test_staged_file_rename_publishes_beside_file_that_appeared_meanwhile(tmp_path, package_logs):
     """RENAME publishes under the next numbered name when the target was taken during the body."""
     target = tmp_path / 'hello.mp4'
     with testee.StagedFile(target, OverwritePolicy.RENAME) as staged:
@@ -198,7 +199,7 @@ def test_staged_file_rename_publishes_beside_file_that_appeared_meanwhile(tmp_pa
     assert staged.published.read_bytes() == b'new'
     assert target.read_bytes() == b'competitor'
     assert entries(tmp_path) == ['hello.1.mp4', 'hello.mp4']
-    assert capsys.readouterr().out == f'Renamed path: {target} -> {staged.published}\n'
+    assert package_logs.record_tuples == [(testee.__name__, logging.INFO, f'Renamed path: {target} -> {staged.published}')]
 
 
 

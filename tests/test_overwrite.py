@@ -1,4 +1,5 @@
 import importlib
+import logging
 import os
 import sys
 from pathlib import Path
@@ -107,6 +108,23 @@ def test_overwrite_existing_path_rename(mocker):
         assert not testee.overwrite_existing_path(Path("/dummy/file.path"), testee.OverwriteMode.RENAME)
 
 
+@pytest.mark.parametrize(('mode', 'user_input', 'expected'), [
+    (testee.OverwriteMode.ALWAYS, None, 'Overwriting path: {}'),
+    (testee.OverwriteMode.NEVER, None, 'Not overwriting path: {}'),
+    (testee.OverwriteMode.PROMPT, 'y', 'Overwriting path: {}'),
+    (testee.OverwriteMode.PROMPT, 'n', 'Not overwriting path: {}'),
+    (testee.OverwriteMode.RENAME, None, None),
+])
+def test_overwrite_existing_path_logs_decision_at_info(mode, user_input, expected, mocker, tmp_path, package_logs):
+    """The deprecated helper logs its overwrite decision at INFO, and RENAME logs nothing."""
+    path = tmp_path / 'out.bin'
+    path.write_bytes(b'old')
+    mocker.patch('builtins.input', return_value=user_input)
+    with deprecated():
+        testee.overwrite_existing_path(path, mode)
+    assert package_logs.record_tuples == ([] if expected is None else [(testee.__name__, logging.INFO, expected.format(path))])
+
+
 @pytest.mark.parametrize('user_input', ['y', 'n'])
 def test_overwrite_existing_path_prompt_warns_once_naming_overwrite_policy(user_input, mocker, tmp_path):
     """A prompting overwrite_existing_path call emits one DeprecationWarning, not a second one for its prompt."""
@@ -202,17 +220,17 @@ def test_overwrite_policy_is_exported_alongside_overwrite_mode():
 
 
 @pytest.mark.parametrize('policy', list(testee.OverwritePolicy))
-def test_overwrite_policy_resolve_returns_absent_path_silently(policy, tmp_path, capsys):
-    """Every policy writes to a path with nothing at it, without a message or any filesystem change."""
+def test_overwrite_policy_resolve_returns_absent_path_silently(policy, tmp_path, package_logs):
+    """Every policy writes to a path with nothing at it, without a log message or any filesystem change."""
     path = tmp_path / 'hello.mp4'
     assert policy.resolve(path) == path
-    assert capsys.readouterr().out == ''
+    assert package_logs.record_tuples == []
     assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize('via_symlink', [False, True], ids=['file', 'symlink'])
-def test_overwrite_policy_resolve_always_overwrites_existing_file(via_symlink, tmp_path, capsys):
-    """ALWAYS returns the path of a file, or a symlink to one, and says it will overwrite it."""
+def test_overwrite_policy_resolve_always_overwrites_existing_file(via_symlink, tmp_path, package_logs):
+    """ALWAYS returns the path of a file, or a symlink to one, and logs that it will overwrite it."""
     real = tmp_path / 'hello.mp4'
     real.write_bytes(b'old')
     path = real
@@ -220,13 +238,13 @@ def test_overwrite_policy_resolve_always_overwrites_existing_file(via_symlink, t
         path = tmp_path / 'link.mp4'
         path.symlink_to(real.name)
     assert testee.OverwritePolicy.ALWAYS.resolve(path) == path
-    assert capsys.readouterr().out == f'Overwriting path: {path}\n'
+    assert package_logs.record_tuples == [(testee.__name__, logging.INFO, f'Overwriting path: {path}')]
     assert real.read_bytes() == b'old'
 
 
 @pytest.mark.parametrize('via_symlink', [False, True], ids=['file', 'symlink'])
-def test_overwrite_policy_resolve_never_keeps_existing_file(via_symlink, tmp_path, capsys):
-    """NEVER returns None for a file, or a symlink to one, and says it will not overwrite."""
+def test_overwrite_policy_resolve_never_keeps_existing_file(via_symlink, tmp_path, package_logs):
+    """NEVER returns None for a file, or a symlink to one, and logs that it will not overwrite."""
     real = tmp_path / 'hello.mp4'
     real.write_bytes(b'old')
     path = real
@@ -234,23 +252,23 @@ def test_overwrite_policy_resolve_never_keeps_existing_file(via_symlink, tmp_pat
         path = tmp_path / 'link.mp4'
         path.symlink_to(real.name)
     assert testee.OverwritePolicy.NEVER.resolve(path) is None
-    assert capsys.readouterr().out == f'Not overwriting path: {path}\n'
+    assert package_logs.record_tuples == [(testee.__name__, logging.INFO, f'Not overwriting path: {path}')]
     assert real.read_bytes() == b'old'
 
 
 @pytest.mark.parametrize('policy', [testee.OverwritePolicy.ALWAYS, testee.OverwritePolicy.NEVER])
-def test_overwrite_policy_resolve_writes_through_dangling_symlink(policy, tmp_path, capsys):
-    """Under ALWAYS and NEVER a dangling symlink holds no file, so its path is returned silently."""
+def test_overwrite_policy_resolve_writes_through_dangling_symlink(policy, tmp_path, package_logs):
+    """Under ALWAYS and NEVER a dangling symlink holds no file, so its path is returned without a log message."""
     path = tmp_path / 'hello.mp4'
     path.symlink_to('missing.mp4')
     assert policy.resolve(path) == path
-    assert capsys.readouterr().out == ''
+    assert package_logs.record_tuples == []
     assert path.is_symlink() and not (tmp_path / 'missing.mp4').exists()
 
 
 @pytest.mark.parametrize('policy', [testee.OverwritePolicy.ALWAYS, testee.OverwritePolicy.NEVER])
 @pytest.mark.parametrize('entry', ['directory', 'directory-symlink', 'fifo'])
-def test_overwrite_policy_resolve_rejects_existing_non_file(policy, entry, tmp_path, capsys):
+def test_overwrite_policy_resolve_rejects_existing_non_file(policy, entry, tmp_path, package_logs):
     """Under ALWAYS and NEVER a directory, symlink to one, or FIFO raises NotAFileError, untouched."""
     path = tmp_path / 'hello.mp4'
     if entry == 'directory':
@@ -265,7 +283,7 @@ def test_overwrite_policy_resolve_rejects_existing_non_file(policy, entry, tmp_p
     before = sorted(p.name for p in tmp_path.iterdir())
     with pytest.raises(NotAFileError):
         policy.resolve(path)
-    assert capsys.readouterr().out == ''
+    assert package_logs.record_tuples == []
     assert sorted(p.name for p in tmp_path.iterdir()) == before
 
 
@@ -284,8 +302,8 @@ def test_overwrite_policy_resolve_raises_when_path_cannot_be_checked(policy, tmp
 
 
 @pytest.mark.parametrize('entry', ['file', 'directory', 'dangling-symlink'])
-def test_overwrite_policy_resolve_rename_numbers_beside_any_existing_entry(entry, tmp_path, capsys):
-    """RENAME treats any entry as taken and returns the first free numbered path, saying so."""
+def test_overwrite_policy_resolve_rename_numbers_beside_any_existing_entry(entry, tmp_path, package_logs):
+    """RENAME treats any entry as taken and returns the first free numbered path, logging so."""
     path = tmp_path / 'hello.mp4'
     if entry == 'file':
         path.write_bytes(b'old')
@@ -296,7 +314,7 @@ def test_overwrite_policy_resolve_rename_numbers_beside_any_existing_entry(entry
     (tmp_path / 'hello.1.mp4').write_bytes(b'one')
     before = sorted(p.name for p in tmp_path.iterdir())
     assert testee.OverwritePolicy.RENAME.resolve(path) == tmp_path / 'hello.2.mp4'
-    assert capsys.readouterr().out == f'Not overwriting path: {path}, writing to: {tmp_path / "hello.2.mp4"}\n'
+    assert package_logs.record_tuples == [(testee.__name__, logging.INFO, f'Not overwriting path: {path}, writing to: {tmp_path / "hello.2.mp4"}')]
     assert sorted(p.name for p in tmp_path.iterdir()) == before
 
 

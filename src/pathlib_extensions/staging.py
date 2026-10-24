@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import stat
@@ -15,6 +16,8 @@ from pathlib_extensions.prepare import (
 )
 
 __all__ = ['StagedFile']
+
+logger = logging.getLogger(__name__)
 
 
 class StagedFile:
@@ -233,7 +236,7 @@ def _link_to_free_name(stage: Path, target: Path) -> Path:
     Hard-link `stage` at `target`, or at its first free numbered name, and return that path.
 
     Any existing entry, whether a file, directory or dangling symlink, counts as taken and
-    is left untouched. Prints the new name when the target itself was taken.
+    is left untouched.
     """
     candidate = target
     number = 0
@@ -245,5 +248,5 @@ def _link_to_free_name(stage: Path, target: Path) -> Path:
             candidate = get_numbered_path(target, number)
         else:
             if number:
-                print(f'Renamed path: {target} -> {candidate}')
+                logger.info('Renamed path: %s -> %s', target, candidate)
             return candidate

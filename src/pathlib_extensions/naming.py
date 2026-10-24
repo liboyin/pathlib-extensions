@@ -1,7 +1,10 @@
+import logging
 import re
 from pathlib import Path
 
 __all__ = ['build_filename', 'get_extension_suffix', 'get_first_available_path', 'get_numbered_path', 'replace_os_reserved_chars', 'truncate_filename']
+
+logger = logging.getLogger(__name__)
 
 
 _RESERVED_CHARS = re.compile(r'[\\/*?:"<>|]')
@@ -111,7 +114,7 @@ def truncate_filename(path: str | Path, max_length: int = 255) -> Path:
     if name is None:
         raise ValueError(f'Not possible to truncate filename to fit in {max_length} bytes: {path}')
     result = path.parent / name
-    print(f'Truncated path: {path} -> {result}')
+    logger.info('Truncated path: %s -> %s', path, result)
     return result
 
 
@@ -214,5 +217,5 @@ def build_filename(text: str, suffix: str = '', *, tag: str = '', max_length: in
     if name is None:
         raise ValueError(f'Not possible to build a filename that fits in {max_length} bytes: {full_name}')
     if name != full_name:
-        print(f'Truncated filename: {full_name} -> {name}')
+        logger.info('Truncated filename: %s -> %s', full_name, name)
     return name
