@@ -351,6 +351,115 @@ def test_staged_file_publication_failure_propagates_and_cleans_up(mocker, tmp_pa
     assert entries(tmp_path) == []
 
 
+@pytest.mark.parametrize('code', [errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP])
+def test_staged_file_rename_fallback_publishes_absent_target_when_links_are_unsupported(code, mocker, tmp_path, package_logs):
+    """With rename_fallback, NEVER publishes by rename when the filesystem refuses hard links, and logs it."""
+    target = tmp_path / 'hello.srt'
+    mocker.patch.object(os, 'link', side_effect=OSError(code, 'unsupported link'))
+    with testee.StagedFile(target, OverwritePolicy.NEVER, rename_fallback=True) as staged:
+        staged.path.write_bytes(b'new')
+    assert staged.published == target
+    assert target.read_bytes() == b'new'
+    assert entries(tmp_path) == ['hello.srt']
+    assert [r.getMessage() for r in package_logs.records] == [
+        f'Hard links are unsupported; published by rename after checking: {target}'
+    ]
+
+
+@pytest.mark.parametrize('competitor', ['file', 'symlink-to-file'])
+def test_staged_file_rename_fallback_keeps_file_that_appeared_meanwhile(competitor, mocker, tmp_path):
+    """Without hard links, a file or a symlink to one that appeared during the body is kept, as with links."""
+    target = tmp_path / 'hello.srt'
+    other = tmp_path / 'other.srt'
+    mocker.patch.object(os, 'link', side_effect=OSError(errno.ENOTSUP, 'unsupported link'))
+    with testee.StagedFile(target, OverwritePolicy.NEVER, rename_fallback=True) as staged:
+        staged.path.write_bytes(b'new')
+        if competitor == 'file':
+            target.write_bytes(b'competitor')
+        else:
+            other.write_bytes(b'competitor')
+            target.symlink_to(other.name)
+    assert staged.published is None
+    assert target.read_bytes() == b'competitor'
+    assert target.is_symlink() == (competitor == 'symlink-to-file')
+    assert not [name for name in entries(tmp_path) if name.startswith('.staging-')]
+
+
+@pytest.mark.parametrize('competitor', ['directory', 'dangling-symlink'])
+def test_staged_file_rename_fallback_raises_for_non_file_that_appeared_at_target(competitor, mocker, tmp_path):
+    """Without hard links, a directory or dangling symlink at the target raises FileExistsError and stays untouched."""
+    target = tmp_path / 'hello.srt'
+    mocker.patch.object(os, 'link', side_effect=OSError(errno.ENOTSUP, 'unsupported link'))
+    with pytest.raises(FileExistsError), testee.StagedFile(target, OverwritePolicy.NEVER, rename_fallback=True) as staged:
+        staged.path.write_bytes(b'new')
+        if competitor == 'directory':
+            target.mkdir()
+        else:
+            target.symlink_to('missing.srt')
+    assert staged.published is None
+    if competitor == 'directory':
+        assert target.is_dir() and entries(target) == []
+    else:
+        assert target.is_symlink() and not (tmp_path / 'missing.srt').exists()
+    assert entries(tmp_path) == ['hello.srt']
+
+
+def test_staged_file_rename_fallback_does_not_hide_other_link_failures(mocker, tmp_path):
+    """A link failure other than unsupported hard links propagates even with rename_fallback, and nothing is published."""
+    target = tmp_path / 'hello.srt'
+    mocker.patch.object(os, 'link', side_effect=OSError(errno.EIO, 'input/output error'))
+    with (
+        pytest.raises(OSError, match='input/output error'),
+        testee.StagedFile(target, OverwritePolicy.NEVER, rename_fallback=True) as staged,
+    ):
+        staged.path.write_bytes(b'new')
+    assert staged.published is None
+    assert entries(tmp_path) == []
+
+
+def test_staged_file_rename_fallback_does_not_apply_to_rename_policy(mocker, tmp_path):
+    """RENAME has no fallback: unsupported hard links still raise, so no numbered name is replaced by a rename."""
+    target = tmp_path / 'hello.srt'
+    mocker.patch.object(os, 'link', side_effect=OSError(errno.ENOTSUP, 'unsupported link'))
+    with (
+        pytest.raises(OSError, match='unsupported link'),
+        testee.StagedFile(target, OverwritePolicy.RENAME, rename_fallback=True) as staged,
+    ):
+        staged.path.write_bytes(b'new')
+    assert staged.published is None
+    assert entries(tmp_path) == []
+
+
+def test_staged_file_rename_fallback_reports_nothing_when_the_rename_fails(mocker, tmp_path, package_logs):
+    """A failed fallback rename propagates, publishes nothing, cleans up and logs no publication."""
+    target = tmp_path / 'hello.srt'
+    mocker.patch.object(os, 'link', side_effect=OSError(errno.ENOTSUP, 'unsupported link'))
+    mocker.patch.object(Path, 'rename', side_effect=OSError(errno.EIO, 'rename failed'))
+    with (
+        pytest.raises(OSError, match='rename failed'),
+        testee.StagedFile(target, OverwritePolicy.NEVER, rename_fallback=True) as staged,
+    ):
+        staged.path.write_bytes(b'new')
+    assert staged.published is None
+    assert entries(tmp_path) == []
+    assert package_logs.records == []
+
+
+def test_staged_file_rename_fallback_with_real_hard_links_still_links(mocker, tmp_path, package_logs):
+    """Where hard links work, rename_fallback changes nothing: NEVER publishes an absent target by a real link."""
+    target = tmp_path / 'hello.srt'
+    link = mocker.patch.object(os, 'link', wraps=os.link)
+    rename = mocker.patch.object(Path, 'rename', wraps=Path.rename, autospec=True)
+    with testee.StagedFile(target, OverwritePolicy.NEVER, rename_fallback=True) as staged:
+        staged.path.write_bytes(b'new')
+    assert staged.published == target
+    assert target.read_bytes() == b'new'
+    link.assert_called_once_with(staged.path, target)
+    rename.assert_not_called()
+    assert package_logs.records == []
+    assert entries(tmp_path) == ['hello.srt']
+
+
 def test_staged_file_rejects_directory_target_before_staging(tmp_path):
     """A destination that is a directory raises on entry, before any stage exists."""
     target = tmp_path / 'hello.mp4'
